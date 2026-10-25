@@ -4,7 +4,7 @@ import type { OsViewName, OsViewRows } from '../lib/contract'
 import { supabase } from '../lib/supabase'
 import { loadSampleSource } from './loadSample'
 import { decideSample, readStoredSample, storeSample } from './sampleFlag'
-import { supabaseSource, type DataSource } from './source'
+import { supabaseSource, ViewMissingError, type DashRow, type DataSource } from './source'
 
 export const REFRESH_MS = 60_000
 const FOCUS_DEBOUNCE_MS = 5_000
@@ -104,6 +104,32 @@ export function useView<N extends OsViewName>(name: N): ViewState<OsViewRows[N]>
     )
     return () => { live = false }
   }, [source, name, tick, report])
+
+  return state
+}
+
+/**
+ * Fetches a published app view (`taskflow_dashboard_goals`, ...). `enabled` is false until Data health says the app is
+ * published, so an unpublished app is never queried (no error, no fake zero). Rows are null until loaded or while disabled.
+ */
+export function useDashboardView(name: string, enabled: boolean, days?: number): ViewState<DashRow[]> {
+  const { source, tick, report } = useData()
+  const [state, setState] = useState<ViewState<DashRow[]>>({ data: null, loading: enabled, error: null, loadedAt: null })
+
+  useEffect(() => {
+    if (!enabled) { setState({ data: null, loading: false, error: null, loadedAt: null }); return }
+    if (!source) return
+    let live = true
+    source.dashboardView(name, days ? { days } : undefined).then(
+      (data) => { if (live) { setState({ data, loading: false, error: null, loadedAt: new Date() }); report(true) } },
+      (e: unknown) => {
+        if (!live) return
+        if (e instanceof ViewMissingError) { setState({ data: null, loading: false, error: null, loadedAt: null }); report(true); return }
+        setState((s) => ({ ...s, loading: false, error: e instanceof Error ? e.message : String(e) })); report(false)
+      },
+    )
+    return () => { live = false }
+  }, [source, name, enabled, days, tick, report])
 
   return state
 }

@@ -86,6 +86,10 @@ export interface TaskflowDeadlineRow { user_id: string; task_id: string; title: 
 export interface TaskflowGoalRow {
   user_id: string; goal_id: string; name: string; metric: string; target_label: string; direction: 'at_least' | 'at_most'
   amount: number; period: 'day' | 'week' | 'month'; period_start: Day; period_end: Day; progress: number; hit: boolean; paused: boolean
+  /** The goal's tag as in `_area_daily` (`Study/DSA`) for `tag_minutes` goals, else null: links to /timer?tag=<tag_path>. */
+  tag_path: string | null
+  /** For `counter_count` goals the `_daily` column the counter maps to (`cigarettes`, `weed`), else null. Absent until TaskFlow publishes it. */
+  counter_key?: string | null
 }
 /** Money's monthly view (money/docs/SPEC.md §9): `month` is the first day of the month, `by_category` is cents of money out by category path. */
 export interface MoneyMonthlyRow {

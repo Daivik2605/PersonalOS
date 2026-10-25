@@ -6,12 +6,19 @@ import { currentGoals, goalHistory, goalView, hitCount } from './goals'
 const T = '2026-10-25' // a Sunday
 const g = (o: Partial<TaskflowGoalRow>): TaskflowGoalRow => ({
   user_id: '', goal_id: 'g1', name: 'Study/DSA', metric: 'tag_minutes', target_label: '60 min / day', direction: 'at_least', amount: 60,
-  period: 'day', period_start: T, period_end: T, progress: 25, hit: false, paused: false, ...o,
+  period: 'day', period_start: T, period_end: T, progress: 25, hit: false, paused: false, tag_path: 'Study/DSA', counter_key: null, ...o,
 })
 
 describe('goalView', () => {
   it('at-least goal in progress, with percent, text and a timer deep link', () => {
-    expect(goalView(g({}), T)).toMatchObject({ state: 'in-progress', percent: 42, progressText: '25m / 1h 00m', link: '/timer?tag=Study%2FDSA' })
+    expect(goalView(g({}), T)).toMatchObject({ state: 'in-progress', percent: 42, progressText: '25m / 1h 00m', link: '/timer?tag=Study%2FDSA', counterKey: null })
+  })
+  it('time goals link by tag_path, not by name; without a tag_path (or for other goal types) the link is /goals', () => {
+    expect(goalView(g({ name: 'Anything', tag_path: 'Study/DSA' }), T).link).toBe('/timer?tag=Study%2FDSA')
+    expect(goalView(g({ tag_path: 'Break' }), T).link).toBe('/timer?tag=Break')
+    expect(goalView(g({ tag_path: null }), T).link).toBe('/goals')
+    expect(goalView(g({ metric: 'activity_count', tag_path: null }), T).link).toBe('/goals')
+    expect(goalView(g({ metric: 'counter_count', tag_path: null, counter_key: 'weed' }), T)).toMatchObject({ link: '/goals', counterKey: 'weed' })
   })
   it('hit comes from TaskFlow, not from Home', () => {
     expect(goalView(g({ progress: 70, hit: true }), T)).toMatchObject({ state: 'hit', percent: 100 })

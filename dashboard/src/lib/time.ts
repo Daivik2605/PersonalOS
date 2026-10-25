@@ -204,3 +204,9 @@ export function parseDuration(text: string): number | null {
   else if ((m = /^(\d+)$/.exec(t))) mins = +m[1]
   return mins !== null && mins > 0 ? mins : null
 }
+
+/** Minutes since local midnight in Toronto (0..1439) — the time of day, for pace hints. */
+export function minutesIntoDay(instant: Instant = new Date()): number {
+  const p = torontoParts(toDate(instant))
+  return p.hour * 60 + p.minute
+}

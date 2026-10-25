@@ -29,8 +29,10 @@ export interface GoalView {
   paused: boolean
   /** "25 / 60 min", "3 / 5", "2 / 3". */
   progressText: string
-  /** Path inside TaskFlow (`/timer?tag=…` for time goals, `/goals` otherwise). */
+  /** Path inside TaskFlow: `/timer?tag=<tag_path>` for time goals that have a tag_path, `/goals` for everything else. */
   link: string
+  /** Counter goals only: the `_daily` column the counter maps to. Limits are matched by this key, never by name. */
+  counterKey: string | null
 }
 
 export const WARN_AT = 0.8
@@ -49,7 +51,8 @@ export function goalView(g: TaskflowGoalRow, today: Day): GoalView {
     id: g.goal_id, name: g.name, period: g.period, periodStart: g.period_start, periodEnd: g.period_end, targetLabel: g.target_label,
     direction: g.direction, progress: g.progress, amount: g.amount, percent: Math.max(0, Math.min(100, Math.round(share * 100))), state, paused: g.paused,
     progressText: `${unitText(g.metric, g.progress)} / ${unitText(g.metric, g.amount)}`,
-    link: g.metric === 'tag_minutes' ? timerLink(g.name) : '/goals',
+    link: g.metric === 'tag_minutes' && g.tag_path ? timerLink(g.tag_path) : '/goals',
+    counterKey: g.counter_key ?? null,
   }
 }
 

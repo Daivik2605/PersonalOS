@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthGate } from './app/AuthGate'
 import { Shell } from './app/Shell'
-import { Home, Trends, Week } from './screens/placeholders'
+import { Trends, Week } from './screens/placeholders'
+import { Home } from './screens/home/Home'
+import { AppPage } from './screens/AppPage'
 import { DataProvider } from './data/DataProvider'
 import { Settings } from './screens/Settings'
 import { System } from './screens/System'
@@ -13,6 +15,7 @@ export default function App() {
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<Home />} />
+          <Route path="app/:key" element={<AppPage />} />
           <Route path="week" element={<Week />} />
           <Route path="trends" element={<Trends />} />
           <Route path="system" element={<System />} />

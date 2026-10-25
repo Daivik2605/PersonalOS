@@ -241,3 +241,12 @@ describe('parseDuration', () => {
     '%s → %d min', (text, mins) => { expect(parseDuration(text)).toBe(mins) })
   it.each([[''], ['abc'], ['0'], ['0h'], ['-5'], ['1h x']])('rejects %j', (text) => { expect(parseDuration(text)).toBeNull() })
 })
+
+describe('minutesIntoDay', () => {
+  it('is Toronto local time, across both DST changes', async () => {
+    const { minutesIntoDay } = await import('./time')
+    expect(minutesIntoDay('2026-10-25T15:30:00Z')).toBe(11 * 60 + 30) // EDT, UTC-4
+    expect(minutesIntoDay('2026-11-02T15:30:00Z')).toBe(10 * 60 + 30) // EST, UTC-5
+    expect(minutesIntoDay('2026-10-25T03:59:00Z')).toBe(23 * 60 + 59) // still the 24th in Toronto
+  })
+})

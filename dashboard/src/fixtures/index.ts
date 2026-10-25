@@ -1,7 +1,7 @@
 // Sample data for sample-data mode (SPEC §1): rows shaped exactly like the contract views, relative to "today" so the
 // screens always look current. Dev only — nothing here is imported by a production build (see data/sample.ts).
 import type { DailyRow, HealthRow, NowRow, TaskflowAreaDailyRow, TaskflowDaysOffRow, TaskflowDeadlineRow, TaskflowGoalRow, MoneyMonthlyRow, OsViewRows, Extra } from '../lib/contract'
-import { addDays, torontoMidnight, type Day } from '../lib/time'
+import { addDays, torontoMidnight, weekdayIndex, type Day } from '../lib/time'
 import { productiveDaily, streak, tagDaily } from '../lib/productive'
 import { weekRows } from '../lib/week'
 
@@ -77,7 +77,8 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
   })
   const taskflow_dashboard_now = [now('taskflow', upd,
     { contract_version: 1, status_line: '3 left today · 2 overdue · DSA 25m', needs_attention: 3, attention_label: 'overdue tasks / unchecked shifts', last_activity_at: hoursAgo(at, 1) },
-    { open_tasks: 14, overdue_tasks: 2, inbox_count: 4, running_area: 'Study/DSA', running_since: hoursAgo(at, 0.4), reset_running_since: null, on_shift_since: null, cold_projects: 1 })]
+    { open_tasks: 14, overdue_tasks: 2, inbox_count: 4, running_area: 'Study/DSA', running_since: hoursAgo(at, 0.4), reset_running_since: null, on_shift_since: null, cold_projects: 1,
+      review_due: weekdayIndex(today) === 0, review_day: 0 })]
 
   const area = (d: Day, parent: string, tag: string, kind: string, appKey: string | null, minutes: number): TaskflowAreaDailyRow =>
     ({ user_id: SAMPLE_USER, day: d, parent_tag: parent, tag, tag_path: tag === parent ? tag : `${parent}/${tag}`, kind, app_key: appKey, minutes })
@@ -95,14 +96,16 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
     { user_id: SAMPLE_USER, task_id: 'sample-t3', title: 'Databricks exam', tag: 'Study/Cert', due_on: addDays(today, 41), days_left: 41, hard_deadline: true },
   ]
   const weekStart = addDays(today, -((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7)) // Monday
-  const goal = (id: string, name: string, metric: string, label: string, dir: TaskflowGoalRow['direction'], amount: number, period: TaskflowGoalRow['period'], start: Day, end: Day, progress: number, hit: boolean): TaskflowGoalRow =>
-    ({ user_id: SAMPLE_USER, goal_id: id, name, metric, target_label: label, direction: dir, amount, period, period_start: start, period_end: end, progress, hit, paused: false })
+  const goal = (id: string, name: string, metric: string, label: string, dir: TaskflowGoalRow['direction'], amount: number, period: TaskflowGoalRow['period'], start: Day, end: Day, progress: number, hit: boolean,
+    tagPath: string | null = null, counterKey: string | null = null): TaskflowGoalRow =>
+    ({ user_id: SAMPLE_USER, goal_id: id, name, metric, target_label: label, direction: dir, amount, period, period_start: start, period_end: end, progress, hit, paused: false, tag_path: tagPath, counter_key: counterKey })
   const taskflow_dashboard_goals = [
-    goal('g1', 'Study/DSA', 'tag_minutes', '60 min / day', 'at_least', 60, 'day', today, today, 25, false),
-    goal('g2', 'Cigarettes', 'counter_count', 'at most 5 / day', 'at_most', 5, 'day', today, today, 3, true),
-    goal('g3', 'Study', 'tag_minutes', '15 h / week', 'at_least', 900, 'week', weekStart, addDays(weekStart, 6), 610, false),
+    goal('g1', 'DSA study', 'tag_minutes', '60 min / day', 'at_least', 60, 'day', today, today, 25, false, 'Study/DSA'),
+    goal('g2', 'Cigarettes', 'counter_count', 'at most 5 / day', 'at_most', 5, 'day', today, today, 3, true, null, 'cigarettes'),
+    goal('g5', 'Weed', 'counter_count', 'at most 1 / day', 'at_most', 1, 'day', today, today, 0, true, null, 'weed'),
+    goal('g3', 'Study', 'tag_minutes', '15 h / week', 'at_least', 900, 'week', weekStart, addDays(weekStart, 6), 610, false, 'Study'),
     goal('g4', 'Gym', 'activity_count', '3 times / week', 'at_least', 3, 'week', weekStart, addDays(weekStart, 6), 2, false),
-    goal('g3', 'Study', 'tag_minutes', '15 h / week', 'at_least', 900, 'week', addDays(weekStart, -7), addDays(weekStart, -1), 950, true),
+    goal('g3', 'Study', 'tag_minutes', '15 h / week', 'at_least', 900, 'week', addDays(weekStart, -7), addDays(weekStart, -1), 950, true, 'Study'),
   ]
 
   // InteractiveDSA
