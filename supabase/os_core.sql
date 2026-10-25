@@ -65,9 +65,10 @@ $$;
 
 grant execute on function os_columns_ok(text, text), os_view_access_ok(text) to authenticated;
 
--- 3. os_app_kind: which kind of time an app's minutes count as (used by phase 3) ---------------------------------------
+-- 3. os_app_kind: which kind of time an app's minutes count as (used by part 2) ---------------------------------------
+-- label = the name used for the fallback tag Study/<label> when an app's minutes have no TaskFlow tag (part 2).
 create or replace view os_app_kind with (security_invoker = true) as
-  select * from (values ('trading', 'study'), ('dsa', 'study')) k(app, kind);
+  select * from (values ('trading', 'study', 'Trading'), ('dsa', 'study', 'DSA')) k(app, kind, label);
 
 -- 4. The self-assembling views -----------------------------------------------------------------------------------------
 -- Sources are DISCOVERED by name (any public view called <key>_dashboard_daily / _now), then VALIDATED (security_invoker,
@@ -147,6 +148,217 @@ begin
   $q$;
 end $$;
 
--- 5. Grants ------------------------------------------------------------------------------------------------------------
+-- 5. Grants (part 1) ---------------------------------------------------------------------------------------------------
 revoke all on os_app_kind, os_daily_activity, os_apps_now, os_contract_health from anon;
 grant select on os_app_kind, os_daily_activity, os_apps_now, os_contract_health to authenticated;
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+-- PART 2 — productive time across apps, streak, week (SPEC §2.2). Every view is built only from sources that exist and
+-- match their contract, exactly like the unions above, so re-run this file after TaskFlow / Money publish or change views.
+-- Days are Toronto dates; os_settings.timezone is display-only (SQL below uses the literal 'America/Toronto').
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+-- 6. Helpers for optional sources (catalog only) ----------------------------------------------------------------------
+-- p_spec = 'name:type,name:type' using format_type names (uuid, date, text, integer, bigint …); extra columns are fine.
+create or replace function os_cols_present(p_view text, p_spec text) returns boolean
+language sql stable as $$
+  select to_regclass('public.' || quote_ident(p_view)) is not null
+     and not exists (
+       select 1 from unnest(string_to_array(p_spec, ',')) s
+       where not exists (
+         select 1 from pg_attribute a
+         where a.attrelid = to_regclass('public.' || quote_ident(p_view)) and a.attnum > 0 and not a.attisdropped
+           and a.attname = split_part(s, ':', 1) and format_type(a.atttypid, a.atttypmod) = split_part(s, ':', 2)))
+$$;
+
+-- True when the view has a numeric column of that name (an extra a source may or may not have).
+create or replace function os_has_col(p_view text, p_col text) returns boolean
+language sql stable as $$
+  select exists (
+    select 1 from pg_attribute a join pg_type t on t.oid = a.atttypid
+    where a.attrelid = to_regclass('public.' || quote_ident(p_view)) and a.attnum > 0 and not a.attisdropped
+      and a.attname = p_col and t.typcategory = 'N')
+$$;
+
+grant execute on function os_cols_present(text, text), os_has_col(text, text) to authenticated;
+
+-- 7. Reporting for the optional TaskFlow views (the unions' health is os_contract_health) -------------------------------
+create or replace view os_optional_health with (security_invoker = true) as
+  select v.app, v.view_name as view,
+         to_regclass('public.' || quote_ident(v.view_name)) is not null as exists,
+         os_cols_present(v.view_name, v.spec) as columns_ok,
+         os_view_access_ok(v.view_name) as access_ok,
+         pg_get_viewdef(v.used_by::regclass) ~ ('\m' || v.view_name || '\M') as in_use
+  from (values
+    ('taskflow', 'taskflow_dashboard_area_daily', 'user_id:uuid,day:date,parent_tag:text,tag:text,tag_path:text,kind:text,app_key:text,minutes:integer', 'os_tag_daily'),
+    ('taskflow', 'taskflow_dashboard_days_off',   'user_id:uuid,day:date',                                                                               'os_productive_daily')
+  ) v(app, view_name, spec, used_by);
+
+-- 8. Productive-time views --------------------------------------------------------------------------------------------
+do $$
+declare
+  area_spec constant text := 'user_id:uuid,day:date,parent_tag:text,tag:text,tag_path:text,kind:text,app_key:text,minutes:integer';
+  tf_area text;
+  tf_off  text;
+  w text[];
+  c text; col text; agg text;
+begin
+  tf_area := case when os_cols_present('taskflow_dashboard_area_daily', area_spec) and os_view_access_ok('taskflow_dashboard_area_daily')
+    then 'select user_id, day, parent_tag, tag, tag_path, kind, app_key, minutes from public.taskflow_dashboard_area_daily'
+    else 'select null::uuid as user_id, null::date as day, null::text as parent_tag, null::text as tag, null::text as tag_path, '
+         'null::text as kind, null::text as app_key, null::int as minutes where false' end;
+  tf_off := case when os_cols_present('taskflow_dashboard_days_off', 'user_id:uuid,day:date') and os_view_access_ok('taskflow_dashboard_days_off')
+    then 'select user_id, day from public.taskflow_dashboard_days_off'
+    else 'select null::uuid as user_id, null::date as day where false' end;
+
+  -- os_tag_daily: TaskFlow minutes per tag per day, raised to what a linked app measured itself (the MAX-RULE).
+  --   app_key is unique per user among non-archived TaskFlow tags, so an app links to at most one tag: the tag that
+  --   carries its app_key in area_daily (if an archived tag still carries it, the most recently used one wins).
+  --   Per user/day/app: minutes = max(TaskFlow minutes on that app_key, the app's own active_minutes); the surplus is
+  --   added to the linked tag (source 'max'). App minutes with no linked tag, or whose tag has no row that day, appear
+  --   as their own row (source 'app'): under the linked tag, else parent 'Study' / tag <label> / path 'Study/<label>'.
+  --   Only apps listed in os_app_kind contribute; TaskFlow's own daily row is never added (no double counting).
+  execute replace($t$
+  create or replace view os_tag_daily with (security_invoker = true) as
+  with tf as (
+    select user_id, day, parent_tag, tag, tag_path, kind, app_key, sum(minutes)::int as minutes
+    from (<TF_AREA>) x
+    group by user_id, day, parent_tag, tag, tag_path, kind, app_key
+  ),
+  tf_app as (
+    select user_id, day, app_key, sum(minutes)::int as tf_minutes
+    from tf where app_key is not null group by user_id, day, app_key
+  ),
+  app as (
+    select a.user_id, a.day, a.app, k.kind, k.label, sum(a.active_minutes)::int as app_minutes
+    from os_daily_activity a join os_app_kind k on k.app = a.app
+    where coalesce(a.active_minutes, 0) > 0
+    group by a.user_id, a.day, a.app, k.kind, k.label
+  ),
+  linked as (
+    select distinct on (user_id, app_key) user_id, app_key, parent_tag, tag, tag_path, kind
+    from tf where app_key is not null
+    order by user_id, app_key, day desc, tag_path
+  ),
+  gap as (
+    select a.user_id, a.day, a.app, a.kind, a.label, a.app_minutes - coalesce(t.tf_minutes, 0) as extra
+    from app a
+    left join tf_app t on t.user_id = a.user_id and t.day = a.day and t.app_key = a.app
+    where a.app_minutes > coalesce(t.tf_minutes, 0)
+  )
+  select t.user_id, t.day, t.parent_tag, t.tag, t.kind, t.app_key,
+         (t.minutes + coalesce(g.extra, 0))::int as minutes,
+         case when g.extra is not null then 'max' else 'taskflow' end::text as source,
+         t.tag_path
+  from tf t
+  left join linked l on l.user_id = t.user_id and l.app_key = t.app_key and l.tag_path = t.tag_path
+  left join gap g    on g.user_id = t.user_id and g.day = t.day and g.app = t.app_key and l.tag_path is not null
+  union all
+  select g.user_id, g.day,
+         coalesce(l.parent_tag, 'Study'), coalesce(l.tag, g.label), coalesce(l.kind, g.kind), g.app,
+         g.extra::int, 'app'::text,
+         coalesce(l.tag_path, 'Study/' || g.label)
+  from gap g
+  left join linked l on l.user_id = g.user_id and l.app_key = g.app
+  where not exists (select 1 from tf t where t.user_id = g.user_id and t.day = g.day and t.tag_path = l.tag_path)
+  $t$, '<TF_AREA>', tf_area);
+
+  -- os_productive_daily: study + hustle minutes per day; a row exists for every day with minutes or marked day off.
+  execute replace($t$
+  create or replace view os_productive_daily with (security_invoker = true) as
+  with p as (
+    select user_id, day, sum(minutes)::int as minutes from os_tag_daily where kind in ('study', 'hustle') group by user_id, day
+  ),
+  off as (select distinct user_id, day from (<TF_OFF>) x)
+  select coalesce(p.user_id, o.user_id) as user_id, coalesce(p.day, o.day) as day,
+         coalesce(p.minutes, 0)::int as minutes, (o.day is not null) as is_day_off
+  from p full join off o on o.user_id = p.user_id and o.day = p.day
+  $t$, '<TF_OFF>', tf_off);
+
+  -- os_week: long format. Day-level facts per app, summed (or averaged) per week; week start from os_settings (default Monday).
+  w := array[
+    'select user_id, day, app, ''active_minutes''::text, active_minutes::numeric, ''sum''::text from os_daily_activity',
+    'select user_id, day, app, ''items_done''::text, items_done::numeric, ''sum''::text from os_daily_activity',
+    'select user_id, day, ''os''::text, ''productive_minutes''::text, minutes::numeric, ''sum''::text from os_productive_daily',
+    'select user_id, day, ''os''::text, ''days_off''::text, 1::numeric, ''sum''::text from os_productive_daily where is_day_off'];
+
+  if os_columns_ok('taskflow_dashboard_daily', 'daily') and os_view_access_ok('taskflow_dashboard_daily') then
+    foreach c in array array['work_minutes:sum', 'cigarettes:sum', 'weed:sum', 'tasks_missed:sum', 'deadlines_missed:sum',
+                             'sleep_minutes:avg', 'mood:avg', 'energy:avg'] loop
+      col := split_part(c, ':', 1); agg := split_part(c, ':', 2);
+      if os_has_col('taskflow_dashboard_daily', col) then
+        w := w || format('select user_id, day, %L::text, %L::text, %s::numeric, %L::text from public.taskflow_dashboard_daily',
+                         'taskflow', col, case when col = 'sleep_minutes' then format('nullif(%I, 0)', col) else format('%I', col) end, agg);
+      end if;
+    end loop;
+  end if;
+
+  if os_columns_ok('money_dashboard_daily', 'daily') and os_view_access_ok('money_dashboard_daily') then
+    foreach col in array array['in_cents', 'out_cents', 'essential_out_cents', 'discretionary_out_cents', 'smoking_out_cents'] loop
+      if os_has_col('money_dashboard_daily', col) then
+        w := w || format('select user_id, day, %L::text, %L::text, %I::numeric, ''sum''::text from public.money_dashboard_daily', 'money', col, col);
+      end if;
+    end loop;
+    if os_has_col('money_dashboard_daily', 'in_cents') and os_has_col('money_dashboard_daily', 'out_cents') then
+      w := w || 'select user_id, day, ''money''::text, ''net_cents''::text, (in_cents - out_cents)::numeric, ''sum''::text from public.money_dashboard_daily';
+    end if;
+  end if;
+
+  execute replace($t$
+  create or replace view os_week with (security_invoker = true) as
+  with d(user_id, day, app, metric, value, agg) as (<SOURCES>),
+  w as (
+    select d.user_id,
+           (d.day - ((extract(dow from d.day)::int - coalesce(s.week_starts_on, 1) + 7) % 7))::date as week_start,
+           d.app, d.metric, d.value, d.agg
+    from d left join os_settings s on s.user_id = d.user_id
+    where d.value is not null
+  )
+  select user_id, week_start, app, metric,
+         (case max(agg) when 'avg' then avg(value) else sum(value) end)::numeric as value
+  from w group by user_id, week_start, app, metric
+  $t$, '<SOURCES>', array_to_string(w, ' union all '));
+end $$;
+
+-- os_streak: consecutive productive days (minutes > 0) ending at the last day that can still count.
+--   Days off are left out of the sequence, so they neither break nor extend a streak (even if I worked on one).
+--   Today with 0 minutes is left out too: it can't break the streak until it is over. Yesterday at 0 does break it.
+--   Gaps-and-islands over the remaining days; dates are added as integers, so a DST change can't shift a day.
+create or replace view os_streak with (security_invoker = true) as
+with today(d) as (select (now() at time zone 'America/Toronto')::date),
+first_day as (
+  select user_id, min(day) as d from os_productive_daily where minutes > 0 group by user_id
+),
+cal as (
+  select f.user_id, (f.d + n)::date as day
+  from first_day f cross join today t
+  cross join lateral generate_series(0, t.d - f.d) n
+),
+counted as (
+  select c.user_id, c.day, coalesce(p.minutes, 0) > 0 as prod
+  from cal c
+  cross join today t
+  left join os_productive_daily p on p.user_id = c.user_id and p.day = c.day
+  where not coalesce(p.is_day_off, false)
+    and not (c.day = t.d and coalesce(p.minutes, 0) = 0)
+),
+numbered as (
+  select user_id, day, prod, row_number() over (partition by user_id order by day) as rn from counted
+),
+runs as (
+  select user_id, day, prod, rn - row_number() over (partition by user_id, prod order by day) as grp from numbered
+),
+islands as (
+  select user_id, count(*)::int as len, max(day) as last_day from runs where prod group by user_id, grp
+),
+last_counted as (select user_id, max(day) as day from counted group by user_id)
+select i.user_id,
+       coalesce(max(i.len) filter (where i.last_day = e.day), 0)::int as "current",
+       max(i.len)::int as longest,
+       max(i.last_day) as last_productive_day
+from islands i join last_counted e on e.user_id = i.user_id
+group by i.user_id;
+
+-- 9. Grants (part 2) ---------------------------------------------------------------------------------------------------
+revoke all on os_optional_health, os_tag_daily, os_productive_daily, os_week, os_streak from anon;
+grant select on os_optional_health, os_tag_daily, os_productive_daily, os_week, os_streak to authenticated;
