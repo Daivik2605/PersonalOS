@@ -17,6 +17,11 @@ const ORDER: Record<OsViewName, string[]> = {
   os_daily_activity: ['day', 'app'],
   os_apps_now: ['app'],
   os_contract_health: ['app', 'view'],
+  os_tag_daily: ['day', 'tag_path'],
+  os_productive_daily: ['day'],
+  os_streak: ['user_id'],
+  os_week: ['week_start', 'app', 'metric'],
+  os_optional_health: ['view'],
 }
 
 export function supabaseSource(client: SupabaseClient, userId: string): DataSource {

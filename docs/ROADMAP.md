@@ -2,6 +2,9 @@
 
 Last updated 2026-10-24. This is the "don't forget we have to build this" file. Each item says **where it lives now** and **what gets built later**. Ports and prefixes are in the registry in root `CLAUDE.md`.
 
+## Where it lives online — JarvisJr
+`jarvisjr.daivik.dev` = PersonalOS Home (the dashboard). Apps on subdomains: `taskflow.jarvisjr.daivik.dev` (TaskFlow phase 3), later `trading.`, `dsa.` (after its sync), `money.`. Private: no indexing, no public sign-up.
+
 ## The rule that sorts everything
 - **TaskFlow** (`taskflow/`) is the general-purpose layer: tasks, deadlines, a timer for *anything*, calendar + days off, ideas/research/notes, projects. If something doesn't have its own app yet, it lives in TaskFlow under a **tag**.
 - **A dedicated app** gets built only when an area needs logic TaskFlow can't do (a curriculum, chart practice, statement parsing). Until then the area's tasks and time are in TaskFlow, so nothing waits on a future app.

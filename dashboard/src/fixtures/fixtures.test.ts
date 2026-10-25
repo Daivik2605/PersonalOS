@@ -70,3 +70,46 @@ describe('sample os_ views', () => {
     expect(new Set(os.os_contract_health.map((h) => h.app))).toEqual(new Set(APPS.map((a) => a.dataKey)))
   })
 })
+
+describe('sample part-2 views (hand-calculated from the fixture arrays)', () => {
+  const os = buildSampleOsViews(v)
+  const prod = (day: string) => os.os_productive_daily.find((p) => p.day === day)
+  it('area_daily has tag_path and never a null tag', () => {
+    expect(v.taskflow_dashboard_area_daily.every((r) => r.tag && r.tag_path === (r.tag === r.parent_tag ? r.tag : `${r.parent_tag}/${r.tag}`))).toBe(true)
+    expect(v.taskflow_dashboard_area_daily.some((r) => r.tag_path === 'Break')).toBe(true)
+  })
+  it('max-rule days: DSA 55 beats TaskFlow 53; the app gets the day off row too', () => {
+    // 10-13: TaskFlow DSA round(75 x 0.7) = 53, DSA app 55 -> 55; Cert 23; trading 40 => 118
+    expect(os.os_tag_daily.find((t) => t.day === '2026-10-13' && t.tag_path === 'Study/DSA')).toMatchObject({ minutes: 55, source: 'max' })
+    expect(prod('2026-10-13')?.minutes).toBe(118)
+    // 10-16: TaskFlow DSA 63 beats the app's 60 => 63 + Cert 27 + trading 50 = 140
+    expect(os.os_tag_daily.find((t) => t.day === '2026-10-16' && t.tag_path === 'Study/DSA')).toMatchObject({ minutes: 63, source: 'taskflow' })
+    expect(prod('2026-10-16')?.minutes).toBe(140)
+    // 10-17 (day off): no TaskFlow study; trading 30 + DSA app 45 under the linked DSA tag
+    expect(prod('2026-10-17')).toMatchObject({ minutes: 75, is_day_off: true })
+    expect(os.os_tag_daily.find((t) => t.day === '2026-10-17' && t.app_key === 'dsa')).toMatchObject({ minutes: 45, source: 'app', tag_path: 'Study/DSA' })
+  })
+  it('the streak skips the day off: 14 days, one off = 13', () => {
+    expect(os.os_streak).toEqual([expect.objectContaining({ current: 13, longest: 13, last_productive_day: TODAY })])
+  })
+  it('week of 10-12 productive minutes = 125 + 118 + 110 + 45 + 140 + 75 + 100 = 713, one day off', () => {
+    const w = os.os_week.filter((r) => r.week_start === '2026-10-12' && r.app === 'os')
+    expect(w.find((r) => r.metric === 'productive_minutes')?.value).toBe(713)
+    expect(w.find((r) => r.metric === 'days_off')?.value).toBe(1)
+  })
+  it('money week sums and the TaskFlow extras are present', () => {
+    const net = os.os_week.find((r) => r.week_start === '2026-10-12' && r.app === 'money' && r.metric === 'net_cents')
+    const inn = os.os_week.find((r) => r.week_start === '2026-10-12' && r.app === 'money' && r.metric === 'in_cents')
+    expect(inn?.value).toBe(260000) // one paycheque (day index 4)
+    expect(net?.value).toBe(260000 - (0 + 4200 + 0 + 1850 + 12500 + 0 + 3300))
+    expect(os.os_week.some((r) => r.app === 'taskflow' && r.metric === 'sleep_minutes')).toBe(true)
+  })
+  it('money fixtures use the names in money/docs/SPEC.md §9', () => {
+    expect(Object.keys(v.money_dashboard_daily[0]!).slice(9)).toEqual(['out_cents', 'in_cents', 'essential_out_cents', 'discretionary_out_cents', 'smoking_out_cents'])
+    expect(Object.keys(v.money_dashboard_monthly[0]!)).toEqual(['user_id', 'month', 'in_cents', 'out_cents', 'net_cents', 'essential_cents', 'discretionary_cents', 'by_category'])
+    expect(Object.keys(v.money_dashboard_monthly[0]!.by_category).every((k) => k.includes('/') || k === 'Subscriptions')).toBe(true)
+  })
+  it('optional TaskFlow views are reported healthy', () => {
+    expect(os.os_optional_health.every((h) => h.exists && h.columns_ok && h.access_ok && h.in_use)).toBe(true)
+  })
+})

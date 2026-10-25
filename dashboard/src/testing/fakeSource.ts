@@ -3,7 +3,7 @@ import type { OsViewName, OsViewRows, Settings } from '../lib/contract'
 import type { DataSource } from '../data/source'
 
 export function emptyViews(): OsViewRows {
-  return { os_daily_activity: [], os_apps_now: [], os_contract_health: [] }
+  return { os_daily_activity: [], os_apps_now: [], os_contract_health: [], os_tag_daily: [], os_productive_daily: [], os_streak: [], os_week: [], os_optional_health: [] }
 }
 
 /** A controllable DataSource for tests. */

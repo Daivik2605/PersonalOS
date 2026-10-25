@@ -300,7 +300,7 @@ begin
       end if;
     end loop;
     if os_has_col('money_dashboard_daily', 'in_cents') and os_has_col('money_dashboard_daily', 'out_cents') then
-      w := w || 'select user_id, day, ''money''::text, ''net_cents''::text, (in_cents - out_cents)::numeric, ''sum''::text from public.money_dashboard_daily';
+      w := w || ('select user_id, day, ''money''::text, ''net_cents''::text, (in_cents - out_cents)::numeric, ''sum''::text from public.money_dashboard_daily')::text;
     end if;
   end if;
 

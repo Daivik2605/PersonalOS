@@ -2,6 +2,8 @@
 // screens always look current. Dev only — nothing here is imported by a production build (see data/sample.ts).
 import type { DailyRow, HealthRow, NowRow, TaskflowAreaDailyRow, TaskflowDaysOffRow, TaskflowDeadlineRow, TaskflowGoalRow, MoneyMonthlyRow, OsViewRows, Extra } from '../lib/contract'
 import { addDays, torontoMidnight, type Day } from '../lib/time'
+import { productiveDaily, streak, tagDaily } from '../lib/productive'
+import { weekRows } from '../lib/week'
 
 export const SAMPLE_USER = '00000000-0000-4000-8000-000000000001'
 export const SAMPLE_DAYS = 14
@@ -78,12 +80,13 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
     { open_tasks: 14, overdue_tasks: 2, inbox_count: 4, running_area: 'Study/DSA', running_since: hoursAgo(at, 0.4), reset_running_since: null, on_shift_since: null, cold_projects: 1 })]
 
   const area = (d: Day, parent: string, tag: string, kind: string, appKey: string | null, minutes: number): TaskflowAreaDailyRow =>
-    ({ user_id: SAMPLE_USER, day: d, parent_tag: parent, tag, kind, app_key: appKey, minutes })
+    ({ user_id: SAMPLE_USER, day: d, parent_tag: parent, tag, tag_path: tag === parent ? tag : `${parent}/${tag}`, kind, app_key: appKey, minutes })
   const taskflow_dashboard_area_daily = days.flatMap((d, i) => [
-    ...(tfStudy[i]! > 0 ? [area(d, 'Study', 'Study/DSA', 'study', 'dsa', Math.round(tfStudy[i]! * 0.7)), area(d, 'Study', 'Study/Cert', 'study', null, Math.round(tfStudy[i]! * 0.3))] : []),
-    ...(tfHustle[i]! > 0 ? [area(d, 'Hustle', 'Hustle/Projects', 'hustle', null, tfHustle[i]!)] : []),
-    ...(tfWork[i]! > 0 ? [area(d, 'Work', 'Work/Oland', 'work', null, tfWork[i]!)] : []),
-    area(d, 'Wellness', 'Wellness/Gym', 'wellness', null, 30),
+    ...(tfStudy[i]! > 0 ? [area(d, 'Study', 'DSA', 'study', 'dsa', Math.round(tfStudy[i]! * 0.7)), area(d, 'Study', 'Cert', 'study', null, Math.round(tfStudy[i]! * 0.3))] : []),
+    ...(tfHustle[i]! > 0 ? [area(d, 'Hustle', 'Projects', 'hustle', null, tfHustle[i]!)] : []),
+    ...(tfWork[i]! > 0 ? [area(d, 'Work', 'Oland', 'work', null, tfWork[i]!)] : []),
+    area(d, 'Wellness', 'Gym', 'wellness', null, 30),
+    area(d, 'Break', 'Break', 'break', null, 40), // time logged on the parent itself: tag = parent, tag_path = "Break"
   ])
   const taskflow_dashboard_days_off: TaskflowDaysOffRow[] = [{ user_id: SAMPLE_USER, day: dayOff, kind: 'rest', label: 'Rest day' }]
   const taskflow_dashboard_deadlines: TaskflowDeadlineRow[] = [
@@ -131,7 +134,7 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
   const month = (back: number): Day => { const m = new Date(`${today}T12:00:00Z`); m.setUTCDate(1); m.setUTCMonth(m.getUTCMonth() - back); return m.toISOString().slice(0, 10) }
   const money_dashboard_monthly: MoneyMonthlyRow[] = [2, 1, 0].map((back, i) => ({
     user_id: SAMPLE_USER, month: month(back), in_cents: 260000, out_cents: [231000, 198000, 214000][i]!, net_cents: 260000 - [231000, 198000, 214000][i]!,
-    essential_cents: [150000, 140000, 138000][i]!, discretionary_cents: [81000, 58000, 76000][i]!, by_category: { Rent: 95000, Groceries: 42000, Transport: 18000, Eating_out: 31000, Subscriptions: 8900 },
+    essential_cents: [150000, 140000, 138000][i]!, discretionary_cents: [81000, 58000, 76000][i]!, by_category: { 'Housing/Rent': 95000, 'Food/Groceries': 42000, 'Transport/Transit': 18000, 'Food/Eating out': 31000, 'Subscriptions': 8900 },
   }))
 
   return {
@@ -147,8 +150,9 @@ const STD_DAILY = ['user_id', 'day', 'app', 'active_minutes', 'items_done', 'ite
 const STD_NOW = ['user_id', 'app', 'contract_version', 'status_line', 'needs_attention', 'attention_label', 'last_activity_at', 'updated_at'] as const
 const pick = <T extends object>(row: T, cols: readonly string[]) => Object.fromEntries(cols.map((c) => [c, (row as Record<string, unknown>)[c]]))
 
-/** The os_* views over the sample views: standard columns only, like the SQL unions. */
-export function buildSampleOsViews(v: SampleViews): OsViewRows {
+/** The os_* views over the sample views: the unions with standard columns only, and the part-2 views from the same TypeScript rules
+ *  the SQL implements (src/lib/productive.ts, week.ts). `today` defaults to the last sample day. */
+export function buildSampleOsViews(v: SampleViews, today: Day = v.taskflow_dashboard_daily.at(-1)!.day): OsViewRows {
   const dailies = [v.trading_dashboard_daily, v.taskflow_dashboard_daily, v.dsa_dashboard_daily, v.money_dashboard_daily]
   const nows = [v.trading_dashboard_now, v.taskflow_dashboard_now, v.dsa_dashboard_now, v.money_dashboard_now]
   const health: HealthRow[] = [['trading', v.trading_dashboard_now], ['dsa', v.dsa_dashboard_now], ['taskflow', v.taskflow_dashboard_now], ['money', v.money_dashboard_now]]
@@ -156,9 +160,18 @@ export function buildSampleOsViews(v: SampleViews): OsViewRows {
       app: app as string, view: `${app as string}_dashboard_${kind}`, exists: true, columns_ok: true, access_ok: true, in_unions: true,
       contract_version: kind === 'now' ? (rows as Now[])[0]!.contract_version : null, last_updated_at: kind === 'now' ? (rows as Now[])[0]!.updated_at : null,
     })))
+  const daily = dailies.flat().map((r) => pick(r, STD_DAILY) as unknown as DailyRow)
+  const os_tag_daily = tagDaily(v.taskflow_dashboard_area_daily, daily, SAMPLE_USER)
+  const os_productive_daily = productiveDaily(os_tag_daily, v.taskflow_dashboard_days_off, SAMPLE_USER)
+  const st = streak(os_productive_daily, today, SAMPLE_USER)
   return {
-    os_daily_activity: dailies.flat().map((r) => pick(r, STD_DAILY) as unknown as DailyRow),
+    os_daily_activity: daily,
     os_apps_now: nows.flat().map((r) => pick(r, STD_NOW) as unknown as NowRow),
     os_contract_health: health,
+    os_tag_daily,
+    os_productive_daily,
+    os_streak: st ? [st] : [],
+    os_week: weekRows({ daily, productive: os_productive_daily, taskflowDaily: v.taskflow_dashboard_daily, moneyDaily: v.money_dashboard_daily }, 1, SAMPLE_USER),
+    os_optional_health: ['taskflow_dashboard_area_daily', 'taskflow_dashboard_days_off'].map((view) => ({ app: 'taskflow', view, exists: true, columns_ok: true, access_ok: true, in_use: true })),
   }
 }

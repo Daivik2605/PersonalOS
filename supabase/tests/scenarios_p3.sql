@@ -77,9 +77,10 @@ insert into tf_area_fx values
 select ostest.app_min('dsa',     :'U1', '2026-10-20', 55) as _ \gset
 select ostest.app_min('trading', :'U1', '2026-10-20', 30) as _ \gset
 select ostest.app_min('dsa',     :'U1', '2026-10-21', 55) as _ \gset
-select ostest.app_min('dsa',     :'U1', '2026-10-22', 50) as _ \gset   -- D3: no TaskFlow row at all that day
+select ostest.app_min('dsa',     :'U1', '2026-10-22', 50) as _ \gset
 select ostest.app_min('dsa',     :'U1', '2026-10-23', 20) as _ \gset
-insert into tf_daily_fx (user_id, day, active_minutes) values (:'U1', '2026-10-20', 70);   -- TaskFlow's own number must NOT be added on top
+-- TaskFlow's own daily number must NOT be added on top:
+insert into tf_daily_fx (user_id, day, active_minutes) values (:'U1', '2026-10-20', 70);
 -- U2 has TaskFlow tags too but different numbers (isolation)
 insert into tf_area_fx values (:'U2', '2026-10-20', 'Study', 'DSA', 'Study/DSA', 'study', 'dsa', 10);
 
@@ -107,21 +108,22 @@ select ostest.ok('P2 productive day totals: study + hustle only (work and break 
   and (select minutes = 70 from os_productive_daily where user_id = :'U1' and day = '2026-10-21')
   and (select minutes = 50 from os_productive_daily where user_id = :'U1' and day = '2026-10-22')
   and (select minutes = 25 + 15 + 20 from os_productive_daily where user_id = :'U1' and day = '2026-10-23'));
-select ostest.ok('P2 another user''s numbers are separate', (select minutes = 10 + 30 + 45 - 10 from os_productive_daily where user_id = :'U2' and day = '2026-10-20' and false) is not distinct from null
-  or (select minutes = 45 + 30 from os_productive_daily where user_id = :'U2' and day = '2026-10-20'));
+select ostest.ok('P2 another user''s numbers are separate (U2: TaskFlow DSA 10 raised to the app''s 45, plus trading 30)',
+  (select minutes = 45 + 30 from os_productive_daily where user_id = :'U2' and day = '2026-10-20')
+  and (select minutes = 45 and source = 'max' from os_tag_daily where user_id = :'U2' and tag_path = 'Study/DSA'));
 
 -- ── P3. streak ───────────────────────────────────────────────────────────────────────────────────────────────────
 -- U3: T-6..T-4 productive, T-3 day off (0), T-2..T productive  -> current 6 (days off bridge)
-select ostest.app_min('trading', :'U3', ostest.today() - n, 30) as _ from generate_series(0, 6) n where n <> 3 \gset
+select ostest.app_min('trading', :'U3', ostest.today() - n, 30) as _ from generate_series(0, 6) n where n <> 3;
 insert into tf_off_fx (user_id, day) values (:'U3', ostest.today() - 3);
 -- U4: T-3..T-1 productive, today nothing -> current 3 (today at 0 does not break)
-select ostest.app_min('trading', :'U4', ostest.today() - n, 30) as _ from generate_series(1, 3) n \gset
+select ostest.app_min('trading', :'U4', ostest.today() - n, 30) as _ from generate_series(1, 3) n;
 -- U5: T-5..T-3, T-2 missed, T-1 productive, today nothing -> current 1, longest 3
-select ostest.app_min('trading', :'U5', ostest.today() - n, 30) as _ from generate_series(1, 5) n where n <> 2 \gset
+select ostest.app_min('trading', :'U5', ostest.today() - n, 30) as _ from generate_series(1, 5) n where n <> 2;
 -- U6: T-5..T-3 then nothing since -> yesterday missed -> current 0, longest 3
-select ostest.app_min('trading', :'U6', ostest.today() - n, 30) as _ from generate_series(3, 5) n \gset
+select ostest.app_min('trading', :'U6', ostest.today() - n, 30) as _ from generate_series(3, 5) n;
 -- U7: T-3 productive, T-2 day off WITH 40 productive minutes (must not extend), T-1, T productive -> current 3
-select ostest.app_min('trading', :'U7', ostest.today() - n, 30) as _ from generate_series(0, 3) n where n <> 2 \gset
+select ostest.app_min('trading', :'U7', ostest.today() - n, 30) as _ from generate_series(0, 3) n where n <> 2;
 select ostest.app_min('trading', :'U7', ostest.today() - 2, 40) as _ \gset
 insert into tf_off_fx (user_id, day) values (:'U7', ostest.today() - 2);
 -- U8: today only -> current 1
@@ -144,7 +146,7 @@ select ostest.ok('P3 os_streak columns', (select string_agg(attname, ',' order b
 
 -- ── P4. week across the November DST change, week start, TaskFlow and Money extras ───────────────────────────────────
 -- Trading minutes for U9: Fri 10-30 30, Sat 10-31 30, Sun 11-01 (clocks go back) 30, Mon 11-02 60
-select ostest.app_min('trading', :'U9', d::date, m) as _ from (values ('2026-10-30', 30), ('2026-10-31', 30), ('2026-11-01', 30), ('2026-11-02', 60)) v(d, m) \gset
+select ostest.app_min('trading', :'U9', d::date, m) as _ from (values ('2026-10-30', 30), ('2026-10-31', 30), ('2026-11-01', 30), ('2026-11-02', 60)) v(d, m);
 insert into tf_daily_fx (user_id, day, active_minutes, work_minutes, sleep_minutes, mood, cigarettes) values
   (:'U9', '2026-10-30', 0, 480, 420, 3, 4), (:'U9', '2026-10-31', 0, 0, 0, null, 2), (:'U9', '2026-11-01', 0, 0, 500, 5, 1), (:'U9', '2026-11-02', 0, 450, 460, 4, 3);
 create table money_fx (user_id uuid not null, day date not null, in_cents int, out_cents int, essential_out_cents int, discretionary_out_cents int, smoking_out_cents int);
@@ -204,9 +206,6 @@ select count(*) as n_settings_before from os_settings \gset
 \i :schema
 select ostest.ok('P5 re-running changes no part-2 definition',
   pg_get_viewdef('os_tag_daily'::regclass) = :'d1' and pg_get_viewdef('os_week'::regclass) = :'d2' and pg_get_viewdef('os_streak'::regclass) = :'d3');
-select ostest.ok('P5 a view the part-2 views depend on cannot be dropped by accident',
-  (select true from (select 1) x where (
-     with r as (select 1) select true)) is not null);
 do $$ begin
   begin execute 'drop view taskflow_dashboard_area_daily'; raise exception 'dropped a view os_tag_daily depends on';
   exception when dependent_objects_still_exist then null; end;

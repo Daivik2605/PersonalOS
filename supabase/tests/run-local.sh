@@ -23,6 +23,10 @@ psql_t -f stand-ins.sql -f fixtures.sql
 
 echo "━━ os_core.sql scenarios (throwaway Postgres on socket in $TMP, port $PORT)"
 psql_t -v schema="$SCHEMA" -v checks="$CHECKS" -t -f scenarios.sql | grep -E "PASSED|FAILED" 
+echo "━━ os_core.sql part 2 scenarios (productive time, streak, week) on a fresh database"
+createdb -h "$TMP" -p "$PORT" -U postgres p3
+psql -h "$TMP" -p "$PORT" -U postgres -d p3 -v ON_ERROR_STOP=1 -q -f stand-ins.sql -f fixtures.sql
+psql -h "$TMP" -p "$PORT" -U postgres -d p3 -v ON_ERROR_STOP=1 -q -v schema="$SCHEMA" -t -f scenarios_p3.sql | grep -E "PASSED|FAILED"
 echo "━━ checks.sql stays clean for the os_ objects (fresh database)"
 createdb -h "$TMP" -p "$PORT" -U postgres chk
 psql -h "$TMP" -p "$PORT" -U postgres -d chk -v ON_ERROR_STOP=1 -q -f stand-ins.sql -f "$SCHEMA"
