@@ -1,6 +1,6 @@
 # PersonalOS — start here
 
-Separate local apps sharing one Supabase database, plus a dashboard. Design: `docs/ARCHITECTURE.md`. Rules for Claude Code: `CLAUDE.md`. What each app must publish: `docs/CONTRACT.md`.
+Separate apps sharing one Supabase database, plus a dashboard. What it does: `docs/CAPABILITIES.md`. Design: `docs/ARCHITECTURE.md`. Where everything lives and build order: `docs/ROADMAP.md`. Rules for Claude Code: `CLAUDE.md`. What each app must publish: `docs/CONTRACT.md`.
 
 ## Setup order (do these in order)
 1. **Save your DSA progress.** Commit InteractiveDSA. Open it (it's on port 5173 today) → **Settings → Export** → save the file into `PersonalOS/backups/`.

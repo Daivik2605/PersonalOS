@@ -22,7 +22,7 @@ Every timed thing has exactly **one tag** from a two-level tree (parent → sub-
 
 **No double counting** (resolves the OPEN item in `DECISIONS.md`): for a tag linked to an app, the dashboard uses `max(TaskFlow minutes, app-measured minutes)` per day, not the sum. So timing a DSA session in TaskFlow while InteractiveDSA also logs it counts once.
 
-## The 11 items
+## The items
 
 ### 1. DSA — existing app (InteractiveDSA)
 - **Now:** nothing new to build. In TaskFlow, the DSA area holds anything outside the curriculum ("redo graph problems before interview X"); the timer can be used, and the max-rule prevents double counting.
@@ -88,6 +88,10 @@ Every project gets a **brief** so future-me can pick it up after 2 months: what 
 - Ends automatically when I start work anywhere: a timer under a Study, Hustle or Work tag, or a punch-in, in TaskFlow, or a start moment in DSA, chart-journal or any later app (they call `taskflow_end_reset` and show the popup — `docs/prompts/07-reset-hook.md`). Undo/edit afterwards.
 - Nap = Sleep tag, reset = Break tag; neither counts as productive hours.
 
+### 14. Job search — in TaskFlow (own app only if needed)
+- **Now:** a TaskFlow **project** "Job search". Each application is a task (title = company · role) with labels for status (`applied`, `interview`, `offer`, `rejected`), a note holding the job description and which resume version was sent, the applied date as the task's done date, and a follow-up date as its due date.
+- **Later — `jobs/` app (port 5176, prefix `jobs_`)** only if this gets clumsy: a pipeline board, resume versions as files, follow-up reminders, response-rate stats. Publishes `jobs_dashboard_*`.
+
 ### Also in TaskFlow (from the same brain-dump)
 - **Action tasks** — pinned buttons that run a flow instead of being ticked (shift, quick-log presets, sleep check-in; plus the smoke counter buttons).
 - **Ideas / research to do / points to remember** — a quick-capture inbox reachable from phone and Mac. Each note can be attached to an area or project, or turned into a task.
@@ -95,12 +99,14 @@ Every project gets a **brief** so future-me can pick it up after 2 months: what 
 - **Holidays / days off for all of PersonalOS** — set in TaskFlow's calendar; the dashboard reads them so streaks and daily goals skip those days.
 
 ## Build order (after this file)
-1. **TaskFlow** — `taskflow/docs/BUILD_PLAN.md` (13 phases, spec in `taskflow/docs/SPEC.md`; the first app hosted online so the phone can use it)
-   - then the reset hook in each existing app — `docs/prompts/07-reset-hook.md`
-2. Dashboard + launcher — `docs/prompts/04-dashboard.md` (add TaskFlow's views to the unions and use the max-rule and days off)
-3. Finance
-4. SQL app
-5. Cert-prep app (Tableau + Databricks tracks)
+Three apps are being built in parallel; use them only once they're finished.
+1. **TaskFlow** — `taskflow/docs/BUILD_PLAN.md` (spec in `taskflow/docs/SPEC.md`). Phases 1–4, then **4.5 (dashboard views, moved up)**, then 5–13.
+   - after phase 5: the reset hook in each existing app — `docs/prompts/07-reset-hook.md`
+2. **chart-journal** round 2 — `docs/prompts/05-chart-journal-round2.md`
+3. **InteractiveDSA** — v2 curriculum migration (B–D), then Supabase sync (3.5.2–3.5.6)
+4. **Dashboard + launcher, local on the Mac** — `docs/prompts/04-dashboard.md`, as soon as TaskFlow phase 4.5 is done (it works with whichever apps have published views; DSA joins when its sync is done)
+5. Hosting: TaskFlow at TaskFlow phase 3; the dashboard after it works locally (both on subdomains of my Vercel domain — `docs/ARCHITECTURE.md` §4)
+6. Finance → SQL app → cert-prep app; job tracker only if the TaskFlow project isn't enough
 
 ## Later TaskFlow add-ons (not in v1)
 - iOS Shortcuts / share-sheet capture ("Add to TaskFlow" from any app) through a Supabase Edge Function with a personal capture token

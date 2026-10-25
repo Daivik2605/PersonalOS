@@ -7,11 +7,11 @@ Read `docs/ARCHITECTURE.md` (design), `docs/CONTRACT.md` (what each app must pub
 ## App registry (single source of truth — other docs point here; update it when an app, port or status changes)
 | App | Folder | Port | Table prefix | Storage bucket prefix | Status |
 |---|---|---|---|---|---|
-| Dashboard + launcher | `dashboard/` | 5170 (UI), 5171 (launcher API) | `os_` | `os-` | planned |
+| Dashboard + launcher | `dashboard/` | 5170 (UI), 5171 (launcher API) | `os_` | `os-` | planned — starts after TaskFlow phase 4.5; local on the Mac first, hosted on a subdomain later (`docs/prompts/04-dashboard.md`) |
 | Chart Journal | `chart-journal/` | 5173 | `trading_` | `trading-` | built, on shared DB |
 | InteractiveDSA | `InteractiveDSA/` | 5174 | `dsa_` | `dsa-` | built; v2 curriculum migration in progress (Phase A done); Supabase sync paused until it finishes (3.5.1 done) |
 | TaskFlow (tasks, timer, calendar + days off, inbox, projects) | `taskflow/` | 5175 (dev; also deployed online for iPhone) | `taskflow_` | `taskflow-` | phases 1–2 built (scaffold, schema, sign-in, seed, tasks + Today, areas); next: phase 3 (`taskflow/docs/BUILD_PLAN.md`) |
-| Job tracker | `jobs/` | 5176 | `jobs_` | `jobs-` | idea |
+| Job tracker | `jobs/` | 5176 | `jobs_` | `jobs-` | in TaskFlow for now (a "Job search" project); own app only if TaskFlow can't do it |
 | Money (statements → in/out, categories) | `money/` | 5177 | `money_` | `money-` | idea |
 | SQL practice | `sql/` | 5178 | `sql_` | `sql-` | idea |
 | Cert prep (Tableau + Databricks tracks) | `cert/` | 5179 | `cert_` | `cert-` | idea |
