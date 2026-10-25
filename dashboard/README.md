@@ -17,5 +17,10 @@ Always open **http://localhost:5170** (not `127.0.0.1:5170`): the launcher only 
 
 Set `VITE_LAUNCHER_URL=http://127.0.0.1:5171` (see `.env.example`). Leave it unset when hosted: Start/Stop and logs are then hidden.
 
+## Data and sample mode
+Home's SQL is `../supabase/os_core.sql` (idempotent: run it in the Supabase SQL Editor, and **re-run it whenever an app publishes or changes its `*_dashboard_*` views**; new apps are found by view name). It is proven by `sh ../supabase/tests/run-local.sh`, which starts a throwaway local Postgres on its own port and deletes it afterwards.
+
+In dev, open `http://localhost:5170/?sample=1` (or tick "Sample data" in Settings) to build and review screens from made-up fixtures in `src/fixtures/`; a violet banner stays on while it is on. `?sample=0` turns it off. It is impossible in a production build.
+
 ## Commands
 `npm test` (UI and launcher tests, including real processes and sockets) · `npm run typecheck` · `npm run build` · `npm run dev` (UI only) · `npm run launcher` (launcher only).

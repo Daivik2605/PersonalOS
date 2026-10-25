@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
+import { DataProvider } from '../data/DataProvider'
+import { fakeSource } from '../testing/fakeSource'
 import { AuthProvider } from './auth'
 import { Shell } from './Shell'
 
@@ -9,7 +11,9 @@ describe('Shell', () => {
     render(
       <MemoryRouter>
         <AuthProvider>
-          <Routes><Route element={<Shell />}><Route index element={<p>page</p>} /></Route></Routes>
+          <DataProvider sourceOverride={fakeSource()}>
+            <Routes><Route element={<Shell />}><Route index element={<p>page</p>} /></Route></Routes>
+          </DataProvider>
         </AuthProvider>
       </MemoryRouter>,
     )

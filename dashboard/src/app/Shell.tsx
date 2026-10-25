@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 import { applyTheme, getStoredTheme, type Theme } from '../lib/theme'
 import { useAuth } from './auth'
 import { NAV } from './nav'
+import { SampleBanner, UnreachableBanner, UpdatedAt } from './DataBanners'
 import { OfflineBanner } from './OfflineBanner'
 
 const link = ({ isActive }: { isActive: boolean }) =>
@@ -31,6 +32,7 @@ function ProfileMenu() {
             <option value="dark">Dark</option>
           </select>
         </label>
+        <Link to="/settings" className="flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-300 text-sm font-medium dark:border-slate-700" onClick={(e) => e.currentTarget.closest('details')?.removeAttribute('open')}>Settings</Link>
         <button onClick={() => void signOut()} className="min-h-11 w-full rounded-lg border border-slate-300 text-sm font-medium dark:border-slate-700">Sign out</button>
       </div>
     </details>
@@ -49,9 +51,11 @@ export function Shell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-slate-200 px-4 py-1 dark:border-slate-800">
           <p className="text-base font-semibold lg:invisible">PersonalOS</p>
-          <ProfileMenu />
+          <div className="flex items-center gap-3"><UpdatedAt /><ProfileMenu /></div>
         </header>
         <OfflineBanner />
+        <UnreachableBanner />
+        <SampleBanner />
         <main className="flex-1 px-4 py-5 pb-24 lg:pb-8"><Outlet /></main>
       </div>
       <nav aria-label="Tabs" className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-slate-800 dark:bg-slate-900">

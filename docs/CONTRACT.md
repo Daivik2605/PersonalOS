@@ -40,9 +40,10 @@ Unique on `(user_id, day)`. Days with no activity may be omitted; the dashboard 
 App-specific columns go after these (e.g. DSA `week`, `solved_alone_total`; trading `guess_accuracy_pct`, `paper_pnl`).
 
 ## How the dashboard combines them (owned by the dashboard, `supabase/os_core.sql`)
-- `os_daily_activity`: `union all` of the **standard columns only** of every registered app's `*_dashboard_daily`.
-- `os_apps_now`: `union all` of the standard columns of every `*_dashboard_now`.
-- When an app is added, its views are added to these two unions in the same change.
+- `os_daily_activity`: `union all` of the **standard columns only** of every valid `*_dashboard_daily`.
+- `os_apps_now`: `union all` of the standard columns of every valid `*_dashboard_now`.
+- Sources are **discovered by name** (any public view called `<key>_dashboard_daily` / `_now`) and validated (`security_invoker`, readable by `authenticated`, standard columns with the right names, order and types). A new app joins by re-running `supabase/os_core.sql` — the file is never edited per app; an invalid view is skipped and shown in `os_contract_health`.
+- Change your dashboard views with `create or replace view` (append-only, as above). A plain `drop view` fails while the unions depend on it; if you ever must drop one, re-run `os_core.sql` afterwards.
 
 ## Computing the views
 - If the app's data already lives in Supabase (chart-journal), the views are plain SQL over its tables.

@@ -2,7 +2,7 @@
 
 How to run a phase: open a terminal in `PersonalOS/` (the root, because this app's SQL lives in `supabase/` and the launcher starts other apps), run `claude` (subscription), and paste the phase's prompt. Claude Code plans first and waits for your OK. Every phase ends with `npm test`, `npm run typecheck` and `npm run build` passing, the **Status** line updated, and a hand-check list. SPEC = `dashboard/docs/SPEC.md`.
 
-**When to start:** phase 1 needs nothing from the other apps, so it can start any time; it's useful during development because it starts and stops all three apps. Phases 2–3 need chart-journal's views (they already exist) and TaskFlow phase 4.5. Phase 4 onward is best once TaskFlow has a week of real timer data.
+**When to start:** every phase can be built now. Home is built against the contract: SQL is tested on local Postgres with fixture views shaped exactly like each app's planned views (TaskFlow SPEC §11, DSA and Money DATA_CONTRACTs), and screens are built with **sample-data mode** (SPEC §1). In the real project each app lights up when it publishes its views and you re-run `os_core.sql` — chart-journal already has; TaskFlow at its phase 4.5; DSA after its sync; Money at its phase 6. Final spec: `SPEC.md` v2 (2026-10-25).
 
 ---
 
@@ -10,7 +10,7 @@ How to run a phase: open a terminal in `PersonalOS/` (the root, because this app
 **Status:** not started
 1. Nothing to install. `dashboard/` is part of the PersonalOS root repo.
 2. Have the Supabase Project URL and anon key ready for `dashboard/.env.local`.
-3. For backups (phase 7): Supabase → Project Settings → Database → copy the **connection string** with your DB password into the **root** `PersonalOS/.env.local` as `SUPABASE_DB_URL=…`. Never put it in an app folder.
+3. For backups (phase 6): Supabase → Project Settings → Database → copy the **connection string** with your DB password into the **root** `PersonalOS/.env.local` as `SUPABASE_DB_URL=…`. Never put it in an app folder.
 
 ### Phase 1 — Shell, sign-in, launcher, System page
 **Status:** built 2026-10-25 (automated checks pass: `npm test`, `npm run typecheck`, `npm run build`); waiting for your hand-check below. Shell (4 tabs + sidebar, theme, offline banner), sign-in/out, `time.ts` + tests, placeholder Home/Week/Trends, launcher (`launcher/*.mjs`, 42 tests on real sockets and processes), System page apps section, `../start-os.sh`, README. Not done on purpose: contract health / freshness / backup sections of System (phases 2 and 7); Supabase-unreachable banner (phase 4, with the first data screens). Next: phase 2.
@@ -21,55 +21,54 @@ How to run a phase: open a terminal in `PersonalOS/` (the root, because this app
 **You:** use `start-os.sh --all` instead of starting apps by hand for a day.
 **Hand-check (needs your real apps):** (1) `sh start-os.sh` opens http://localhost:5170, sign in, System lists all three apps. (2) With nothing on 5173, Start chart-journal: dot turns green. Stop: dot goes grey, and `lsof -nP -iTCP:5173 -sTCP:LISTEN` prints nothing. (3) An app running from a Claude session (e.g. TaskFlow on 5175) shows "Already running" with Stop greyed out. (4) `sh start-os.sh --all` skips running apps and names them. (5) Ctrl+C the script, then run `npm run dev` in `dashboard/` alone: System says "Launcher offline" and the rest still works. (6) Open http://127.0.0.1:5170 instead: System says to open http://localhost:5170.
 
-### Phase 2 — Data foundation (`supabase/os_core.sql`, part 1)
+### Phase 2 — Data foundation and app registry
+**Status:** built 2026-10-25 (automated checks pass: `npm test` 188 tests, `npm run typecheck`, `npm run build`; `supabase/tests/run-local.sh` 35 scenarios on a throwaway local Postgres); waiting for you to run `supabase/os_core.sql` and do the hand-check below. Built: `src/lib/apps.ts` (+`syncs`, Money with `launcherKey: null`), `supabase/os_core.sql` part 1 (`os_settings`, `os_app_kind`, unions that **discover sources by name**, `os_contract_health` with `access_ok`/`in_unions`), `src/fixtures/` (trading, taskflow ×6, dsa, money ×3) and dev-only sample mode, the data layer (`src/data/`: refresh on focus + every 60 s, "Updated X ago", unreachable banner keeping the last data), Settings, System → Data health. Not done on purpose: productive time, streak, week (phase 3); Home cards (phase 4); backups/database health (phase 6). Money's `_monthly` fixture columns (`in_cents`, `out_cents`, `net_cents`, `essential_cents`, `discretionary_cents`, `by_category`) are a guess from Money SPEC §9 — check them when Money writes its DATA_CONTRACT. Next: phase 3.
+> Read CLAUDE.md, dashboard/CLAUDE.md, docs/CONTRACT.md and dashboard/docs/SPEC.md (final v2). Do Phase 2 of dashboard/docs/BUILD_PLAN.md: plan first and wait for my approval.
+> (1) `src/lib/apps.ts` per SPEC §2.4 — `launcherKey` vs **`dataKey`** (chart-journal → `trading`), names, ports, URLs, deep links — with a test that every `launcher/apps.json` entry has a registry entry and that no folder/command is bundled into the UI. (2) `../supabase/os_core.sql` part 1: `os_settings` (SPEC §2.1), `os_app_kind`, the self-assembling `os_daily_activity` / `os_apps_now` block that includes only views that exist and match the contract, and `os_contract_health` (SPEC §2.2). Test on local Postgres with Supabase stand-ins (pattern: `../taskflow/supabase/tests/`): runs twice cleanly; works with zero, one and three app views; a view with wrong columns is skipped and reported; two users isolated. (3) `src/fixtures/` with sample rows for every view in SPEC §2.3 (trading, taskflow ×6, dsa, money ×3), shaped exactly like those contracts, plus sample-data mode (SPEC §1) with its banner, dev only. (4) Data layer: fetch + refresh on focus and every 60 s, "updated X ago", offline banner with last loaded data. (5) Settings screen (SPEC §3.6) and the System page's Data health section (SPEC §3.5). Tell me exactly what to run in the SQL Editor.
+
+**Done when:** after running `os_core.sql` in the real project, System shows chart-journal "contract OK", TaskFlow/DSA/Money "not published yet"; sample-data mode shows all four apps healthy; Settings saves the daily goal.
+**You:** run `supabase/os_core.sql` in the SQL Editor (twice); then ask the root session to run `supabase/checks.sql`.
+**Hand-check (needs your real project):** (1) Supabase → SQL Editor → paste all of `supabase/os_core.sql` → Run; run it a second time (no errors both times). (2) `cd dashboard && npm run dev`, open http://localhost:5170, sign in, System → Data health: Chart Journal "Contract OK, v1", InteractiveDSA / TaskFlow / Money "Not published yet". If Chart Journal says "Contract problem", read the reason shown and tell me — a column type in its view differs from the contract. (3) Settings: change the daily goal to 300, Save, reload: still 300. (4) Open http://localhost:5170/?sample=1: violet "Sample data" banner, System shows all four apps "Contract OK", Settings saves in memory only (reload and it resets). `?sample=0` turns it off. (5) Disconnect the network, wait 60 s: the amber "Can't reach the database" banner appears and System keeps its last result. (6) After TaskFlow or DSA publish their views: re-run `os_core.sql`; the app moves from "Not published yet" to "Contract OK" with no code change.
+
+### Phase 3 — Productive time, streak, week (`os_core.sql` part 2)
 **Status:** not started
-> Do Phase 2 of dashboard/docs/BUILD_PLAN.md (SPEC §2.1, and the unions + `os_app_kind` + `os_contract_health` from §2.2): plan first. Tables `os_settings`, `os_targets`, `os_reviews` with RLS and triggers; the self-assembling `os_daily_activity` / `os_apps_now` union block; `os_contract_health`. Test on local Postgres with Supabase stand-ins (pattern: `taskflow/supabase/tests/`): runs twice cleanly; unions work with zero, one and two app views; a view with wrong columns is skipped and reported by `os_contract_health`; two users isolated. Add `os` checks to `supabase/checks.sql` if needed. Wire Settings (goal, week start, review day, hosted URLs, theme) and the System page's contract-health section. Tell me exactly what to run in the SQL Editor.
+> Do Phase 3 of dashboard/docs/BUILD_PLAN.md (SPEC §2.2: `os_tag_daily`, `os_productive_daily`, `os_streak`, `os_week`): plan first, including the exact SQL for the max-rule and the streak. Every view built only from sources that exist (same `do $$` pattern). Local Postgres fixtures (create stand-in `taskflow_dashboard_*`, `dsa_dashboard_*`, `money_dashboard_*` views from their contracts): TaskFlow Study/DSA 40 min + DSA app 55 → 55; trading minutes with no TaskFlow row → counted under Study/Trading; no TaskFlow at all → app minutes only; a day off inside a streak; today at 0 not breaking the streak; a week across the DST change; two users. `src/lib/productive.ts`, `week.ts`, `goals.ts` (reading `taskflow_dashboard_goals` rows) with tests.
 
-**Done when:** after running the file, System shows chart-journal's contract as healthy and TaskFlow as "not published yet" (or healthy if 4.5 is done); Settings saves.
-**You:** run `os_core.sql` in the SQL Editor twice.
+**Done when:** every fixture gives the expected number; in the real project today's productive minutes equal chart-journal's minutes (until TaskFlow publishes).
+**You:** re-run `os_core.sql`.
 
-### Phase 3 — Productive time, streak, targets maths (`os_core.sql`, part 2)
-**Status:** not started — needs TaskFlow phase 4.5
-> Do Phase 3 of dashboard/docs/BUILD_PLAN.md (SPEC §2.2 — `os_tag_daily`, `os_productive_daily`, `os_streak`, `os_target_progress`, `os_week_summary`): plan first, including the exact SQL for the max-rule and the streak. Local Postgres fixtures: a day where a TaskFlow Study/DSA session (40 min) and DSA's own minutes (55) overlap → 55; trading minutes with no TaskFlow row → counted under Study/Trading; a day off inside a streak; today with 0 minutes not breaking the streak; a weekday-only target skipping weekends and days off; a week crossing a DST change; two users. `src/lib/productive.ts`, `targets.ts` (period windows, pace: expected-by-now vs actual) with tests.
-
-**Done when:** every fixture gives the expected number, and on my real data today's productive minutes equal TaskFlow Insights' Study + Hustle total (or the larger app number where linked).
-**You:** run the file, compare today's number with TaskFlow.
-
-### Phase 4 — Home
+### Phase 4 — Home screen
 **Status:** not started
-> Do Phase 4 of dashboard/docs/BUILD_PLAN.md (SPEC §3.1 and §3.4): plan first. Home header (goal ring with pace hint, streak, work, sleep, counters with 7-day average, freshness), today's target chips (deep link into TaskFlow's timer), Needs attention, Coming up (from `taskflow_dashboard_deadlines` — if it doesn't exist yet, hide the section and note it), app tiles (launcher or hosted URL), quick links; generic app detail pages. Missing data shows "no data", never 0. Test the empty states with zero apps published.
+> Do Phase 4 of dashboard/docs/BUILD_PLAN.md (SPEC §3.1 and §3.4): plan first. Header (goal ring with pace hint, streak, work, sleep, counter pills with 7-day average and limit colours, freshness), goals today (TaskFlow deep links), Needs attention with per-app deep links, Coming up, Money card (amounts hidden behind a tap on the phone), app tiles with "not published yet", quick links; app detail pages showing every `_now` extra and every `_daily` column generically. Missing data shows "no data", never 0. No emojis. Build and review with sample-data mode first, then real data. Tests for empty states (zero apps), one app, and all apps.
 
-**Done when:** Home answers "how's today going" at a glance on the Mac and at 375px; every number matches its app.
-**You:** set Home as the Mac browser's start page; use it for 3 days and note anything you look for and can't find.
+**Done when:** in sample-data mode every card is filled and correct; with real data, every number matches its app.
+**You:** set http://localhost:5170 as the Mac browser's start page.
 
-### Phase 5 — Week, targets, weekly review
+### Phase 5 — Week and Trends
 **Status:** not started
-> Do Phase 5 of dashboard/docs/BUILD_PLAN.md (SPEC §3.2, §3.6 targets editor, `review.ts`): plan first. Week screen (this vs last week, target bars and day hit rates, stacked daily bars with days off greyed), target editor, weekly review form that saves notes + a frozen `snapshot`, review banner on Home on review day, past reviews list. Tests: week windows with `week_starts_on`, deltas, snapshot unchanged after later app edits.
+> Do Phase 5 of dashboard/docs/BUILD_PLAN.md (SPEC §3.2 and §3.3): plan first. Week: this vs last week per app side by side (from `os_week`), TaskFlow weekly goals, stacked daily productive bars with days off greyed, and the link to TaskFlow `/review`. Trends: ranges, every chart and stat in SPEC §3.3 with rule notes, lazy-loaded charts. Check every chart at 375 px and in dark mode, in sample-data mode and with real data.
 
-**Done when:** I can set "DSA 60 min/day Mon–Fri" and "Tableau 5 h/week", see progress, and save a review whose numbers don't change afterwards.
-**You:** set your real targets; do the first review on Sunday.
+**Done when:** in sample-data mode the week deltas and the 90-day heatmap match hand calculations from the fixtures.
 
-### Phase 6 — Trends
+### Phase 6 — System health, backups, start at login
 **Status:** not started
-> Do Phase 6 of dashboard/docs/BUILD_PLAN.md (SPEC §3.3): plan first. Ranges, all charts, stats (averages excluding days off, best day/week, longest streak), rule notes on charts. Lazy-load charts. Check every chart at 375px and in dark mode.
+> Do Phase 6 of dashboard/docs/BUILD_PLAN.md (SPEC §3.5 Database section, §4 launchd, §5): plan first. Stale-data (2 days), quiet-database (5 days) and old-backup (8 days) warnings; `launcher/backup.sh` + `GET /backup` + weekly launchd job; `docs/RESTORE.md` tested by restoring a dump into local Postgres; launchd plist for `start-os.sh` at login with install/uninstall steps. Under launchd PATH is minimal, so set PATH explicitly in the plist (or use absolute paths) — test it after a real logout/login.
 
-**Done when:** the 90-day heatmap and the stacked tag chart match Insights in TaskFlow for the same days.
+**Done when:** a backup file appears in `backups/`, a restore into local Postgres works, and after a reboot Home opens by itself with the launcher online.
 
-### Phase 7 — Backups, login start, health warnings
+### Phase 7 — Host it (`os.<my-domain>`)
 **Status:** not started
-> Do Phase 7 of dashboard/docs/BUILD_PLAN.md (SPEC §3.5 database section, §4 launchd, §5): plan first. `launcher/backup.sh` + `/backup` endpoint + weekly launchd job; `docs/RESTORE.md`, tested by restoring a dump into local Postgres; launchd plist for `start-os.sh` at login with install/uninstall steps; System warnings for stale app data (2 days), quiet database (5 days) and old backup (8 days).
-
-**launchd note:** launchd starts jobs with a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), so `npm`, `node`, `python` and `pg_dump` may not be found. The plist must set `EnvironmentVariables` → `PATH` explicitly (or use absolute paths), and `launcher/backup.sh` must do the same. (`start-os.sh` already prepends `/opt/homebrew/bin:/usr/local/bin`; check where `node` and `pg_dump` actually are with `command -v`.)
-
-**Done when:** a backup file appears in `backups/`, a restore into local Postgres works, and after a reboot Home opens by itself.
-
-### Phase 8 — Host it (`os.<my-domain>`)
-**Status:** not started
-> Do Phase 8 of dashboard/docs/BUILD_PLAN.md (SPEC §6): plan first. PWA (manifest, icons, update prompt), Vercel config for a project rooted at `dashboard/` in the PersonalOS repo, SPA rewrites, env vars. Write the click-by-click steps: create the Vercel project, set root directory and env vars, add `os.<my-domain>` in Vercel → Domains, add the URL in Supabase → Authentication → URL Configuration, install on iPhone. Confirm nothing tries to reach the launcher when hosted.
+> Do Phase 7 of dashboard/docs/BUILD_PLAN.md (SPEC §6): plan first. PWA (manifest, icons, update prompt), Vercel config for a project rooted at `dashboard/` in the PersonalOS repo, SPA rewrites, env vars. Confirm the hosted build hides every launcher feature, uses hosted URLs for Open, and contains no folder names or commands. Write the click-by-click steps: Vercel project, root directory, env vars, `os.<my-domain>` in Vercel → Domains, the URL in Supabase → Authentication → URL Configuration, install on the iPhone.
 
 **Done when:** `os.<my-domain>` works on mobile data, installs on the iPhone, and shows the same numbers as the Mac.
+
+### Phase 8 — Light up each app (repeat per app, ~15 min each)
+**Status:** chart-journal live from phase 2; others waiting on their apps
+> When an app publishes its views (TaskFlow phase 4.5 and 2.8/4.2 extras, DSA sync 3.5.4, Money phase 6): re-run `supabase/os_core.sql`, run `supabase/checks.sql`, compare one week of Home's numbers for that app with the app's own screens, fix any mismatch on the side that's wrong, and note it in `../docs/DECISIONS.md`.
+
+**Done when:** System shows every built app "contract OK" and fresh, and Home's numbers match each app.
 
 ---
 
 ## Later (SPEC §7)
-AI weekly summary (Edge Function + Claude) · evening nudges via web push · year in review / monthly report · ⌘K command palette · per-app access allowlist.
+Cross-app monthly report / year in review · smoking cost per cigarette · ⌘K command palette · per-app access allowlist.

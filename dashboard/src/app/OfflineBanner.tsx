@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-/** Browser offline. (Supabase-unreachable handling with "last loaded data" arrives with the first data screens, phase 4.) */
+/** Browser offline. (Supabase unreachable is UnreachableBanner in DataBanners.) */
 export function OfflineBanner() {
   const [online, setOnline] = useState(() => navigator.onLine)
   useEffect(() => {

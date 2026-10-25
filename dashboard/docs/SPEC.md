@@ -1,170 +1,124 @@
-# PersonalOS Home — spec
+# PersonalOS Home — spec (final, v2 — 2026-10-25)
 
-The hub of PersonalOS: one screen that shows how my days are going across every app, plus a launcher that starts the apps on my Mac. Folder `dashboard/`, app key `os`. System rules: `../../CLAUDE.md`. What PersonalOS does: `../../docs/CAPABILITIES.md` (this app *is* capability 8, "See everything"). Contract it reads: `../../docs/CONTRACT.md`.
-
-Sections are numbered so the build plan can point at them (e.g. "SPEC §3.2").
+The hub of PersonalOS: **one place that shows how my days are going across every app**, plus a launcher that starts the apps on my Mac. Folder `dashboard/`, app key `os`. System rules: `../../CLAUDE.md`. What PersonalOS does: `../../docs/CAPABILITIES.md` (Home is capability 8, "See everything"). Contract it reads: `../../docs/CONTRACT.md`. Sections are numbered so the build plan can point at them.
 
 ---
 
-## 0. Goal
+## 0. Goal and boundaries
 
-**Know in 10 seconds whether my days are going where I want them to — and get back on track fast.**
+**Know in 10 seconds whether my days are going where I want them to — across study, work, money, body and habits — and jump straight to the app that fixes it.**
 
-The apps each record one part of my life. Only here do the parts meet. Home answers:
-1. **Today:** how much productive time so far vs my goal, what's left, and what needs attention.
-2. **This week:** am I hitting my targets (DSA, certs, AEO Studio…)? How do work, sleep and habits compare with last week?
-3. **Over time:** am I getting more consistent? Where does my time actually go? Are cigarettes and weed going down?
-4. **Is the system healthy?** Which apps are running? Is each app's data fresh? Did the backup run?
+Every app records one part of my life and has its own detailed screens. **Home is the only place they meet.** It answers:
+1. **Today:** productive time vs my goal, streak, work, sleep, counters, what needs attention, what's due soon.
+2. **This week:** every app's week side by side vs last week, and my TaskFlow goals' progress.
+3. **Over time:** consistency, where my time goes, habits and money trends.
+4. **The system:** which apps are running, whether each app's data is fresh and matches the contract, whether backups ran.
 
-**Success measures** (check after a month of use):
-- I open it every day. It's the first page on the Mac and on the phone home screen once hosted.
-- Answering "how's today going" takes 10 seconds or less.
-- I do the weekly review on at least 3 Sundays out of 4.
-- Its numbers match each app's own screens. Any difference is a bug.
-- I enter nothing here except targets and review notes.
+### 0.1 What Home can do
+- Show a combined, honest summary of every app that publishes contract views, including apps that aren't running.
+- Compute the one number no single app can: **productive time across apps** (Study + Hustle, the max-rule so nothing counts twice, days off skipped), its streak, and my **daily productive goal**.
+- Show TaskFlow's goals (per tag, counter, activity, tasks) with progress, read from TaskFlow.
+- Show each app's attention items and deadlines, and **deep-link** into the exact screen that handles them.
+- Start, stop and open apps on the Mac (launcher), show their logs, and warn when data is stale, a contract breaks, the database is going quiet, or a backup is old.
+- Pick up a new app automatically once its views exist (re-run `os_core.sql`); show any new column an app adds without code changes.
+- Work hosted on the phone later (`os.<my-domain>`), minus the launcher.
 
-**Principles**
-- **Reads, never writes, to other apps.** Wherever an action is needed, it deep-links to the app that owns it, such as starting a timer in TaskFlow.
-- **Honest numbers:**
-  - Show how fresh each app's data is.
-  - Missing data shows as "no data", never as 0.
-  - Counting rules (the max-rule, days off) are stated on screen where they apply.
-- **Works with any subset of apps.** An app that hasn't published views yet simply isn't shown.
-- **Glance first, drill down second.** Home fits on one screen, and the details are one click away.
+### 0.2 What Home can't do (by design)
+- **No recording or editing in other apps.** No timer, no task edits, no counter taps, no review writing — it links to the app instead. Its only writes are its own settings.
+- **No detail beyond the contract views.** It can't list individual DSA problems, trades, transactions or tasks — the app's own screens do that.
+- **No data from apps that haven't published views.** Today: chart-journal publishes; TaskFlow from its phase 4.5; DSA after its sync; Money after its phase 6. Until then that app shows "not published yet" (never a fake 0).
+- **No launcher when hosted** or when the launcher is off, and it never stops an app it didn't start (e.g. a dev server from a Claude session).
+- **Not live to the second.** Views can't push changes, so Home refreshes on focus and every 60 s; TaskFlow shows the live running timer.
+- **Not more accurate than the apps.** Known limits are shown on screen: chart-journal's `items_planned` is today's count only; DSA is one device; TaskFlow's per-tag goals count TaskFlow-timed minutes only, while Home's productive total uses the max-rule.
+- **No notifications** (TaskFlow does reminders), **no offline mode** beyond the last loaded data, **no other users**.
+- **Not a second place for goals or reviews.** Goals, the evening shutdown, the weekly review and the Claude weekly summary live in TaskFlow (its revision 3); Home shows them.
 
-**Not this app's job:** recording activity (the apps do that), editing tasks, shifts or study progress, or re-implementing any app's rules.
+### 0.3 Success measures (after a month of use)
+- Opened every day; "how's today going" answered in ≤ 10 s.
+- Every number matches the owning app's screen — any difference is a bug.
+- Nothing entered here except the daily goal and display settings.
+
+### 0.4 Principles
+- **Reads, never writes, to other apps** — deep links instead.
+- **Honest numbers:** freshness shown; missing = "no data", never 0; counting rules stated where they apply.
+- **Any subset of apps works.** Home is complete and testable before the apps are — it's built against the contract with fixtures, and lights up app by app.
+- **Glance first, drill down second.** Home fits one screen; details are one click away.
+- **No emojis in the UI** (same rule as TaskFlow; `src/noEmoji.test.ts`). Icons and text labels only.
 
 ## 1. Stack and app rules
-- Vite + React + TypeScript + Tailwind + React Router + Recharts + Vitest, the same stack as TaskFlow. supabase-js with the anon key from `.env.local`, and the same email/password account.
-- UI port **5170** (strict). Launcher on **127.0.0.1:5171**, a Node server with no framework.
-- Days are America/Toronto dates via `src/lib/time.ts` (copy TaskFlow's tested module).
-- Pure, unit-tested modules in `src/lib/`:
-  - `productive.ts` (presentation of the max-rule results)
-  - `targets.ts` (period windows, progress, pace)
-  - `review.ts` (week snapshot, week-over-week deltas)
-  - `health.ts` (freshness and staleness rules)
-- Mobile-first at 375px wide, with a sidebar from 1024px. Dark mode follows the system, with an override.
-- If Supabase is unreachable, keep showing the last loaded data with a banner and its timestamp.
-- **Optional launcher:** `VITE_LAUNCHER_URL` is set on the Mac and unset when hosted. When it's unset, Start/Stop, logs and port status are hidden. Everything else works.
+- Vite + React + TypeScript + Tailwind + React Router + Recharts + Vitest (same as TaskFlow). supabase-js, anon key from `.env.local`, the shared account.
+- UI port **5170** strict; launcher **127.0.0.1:5171** (Node, no framework). Built in phase 1.
+- Days are America/Toronto dates via `src/lib/time.ts`.
+- Pure, tested modules in `src/lib/`: `apps.ts` (app registry, §2.4), `productive.ts`, `goals.ts` (presentation of TaskFlow goals), `week.ts` (week windows, deltas), `health.ts` (freshness and staleness rules), `launcher.ts` (built).
+- Mobile-first at 375 px, sidebar from 1024 px, dark mode with override.
+- Data refresh: on window focus and every 60 s; a "last updated" time is always visible. If Supabase is unreachable, keep the last loaded data with a banner.
+- **Sample-data mode** (dev only, `?sample=1` or a toggle in Settings when `import.meta.env.DEV`): screens render from fixture JSON in `src/fixtures/` shaped exactly like the contract views, with a permanent "Sample data" banner. Used to build and review every screen before the apps publish; never on in a production build.
+- `VITE_LAUNCHER_URL` set on the Mac, unset when hosted (launcher features hidden).
 
-## 2. Data — `../../supabase/os_core.sql` (idempotent, tested on local Postgres before I run it)
+## 2. Data
 
-### 2.1 Tables (own data; standard `user_id`, RLS, `"own rows"`, `updated_at` trigger)
-- **`os_settings`** (one row per user):
-  - `daily_goal_minutes` (240)
-  - `week_starts_on` (1 = Monday)
-  - `review_day` (0 = Sunday)
-  - `timezone` (`America/Toronto`)
-  - `app_urls jsonb` (hosted URL per app key, for Open links when hosted)
-  - `theme`
-- **`os_targets`**:
-  - `id`
-  - `label`
-  - `scope`: `total` (all productive time), `tag` (a TaskFlow tag path such as `Study/DSA`), or `app` (an app key)
-  - `key`
-  - `period`: `day` or `week`
-  - `minutes`
-  - `weekdays int[]` (day targets only; null means every day; days off are always skipped)
-  - `active`
-  - `sort`
+### 2.1 Home's own data — `../../supabase/os_core.sql` (idempotent, tested on local Postgres first)
+- **`os_settings`** (one row per user; standard `user_id`, RLS, `"own rows"`, `updated_at`): `daily_goal_minutes` (240), `week_starts_on` (1 = Monday), `timezone` (`America/Toronto`), `hidden_apps text[]`, `card_order text[]`, `theme`.
+- That's all Home stores. (Targets and reviews were dropped from Home on 2026-10-25 — TaskFlow owns them.)
 
-  Examples: DSA 60 min/day Mon–Fri; Tableau cert 5 h/week; AEO Studio 4 h/week.
-- **`os_reviews`**:
-  - `week_start date`, unique per user
-  - `rating` 1–5
-  - `went_well`, `didnt_go_well`, `next_focus` (text)
-  - `snapshot jsonb`: the week's numbers frozen when the review is saved, so later edits in apps don't rewrite history
+### 2.2 Views Home builds (all `security_invoker`, granted to `authenticated`)
+Every view that depends on another app's view is generated by a `do $$ … $$` block that **discovers sources by name** (any public view called `<key>_dashboard_daily` / `<key>_dashboard_now`, key = lowercase letters and digits) and then **validates** each one (`security_invoker`, readable by `authenticated`, standard columns with the contract's names, order and types); only valid sources are included and the rest are skipped and reported. A new app therefore appears after re-running `os_core.sql` with **no edit to the file**; a short known-apps list (trading, dsa, taskflow, money) is used only to show "not published yet". Apps must change their views with `create or replace` (a plain `drop view` is blocked while a union uses it). Re-run `os_core.sql` after any app publishes or changes views.
+- **`os_daily_activity` / `os_apps_now`** — `union all` of the standard columns of every valid `*_dashboard_daily` / `*_dashboard_now`.
+- **`os_app_kind`** — constants: app key → kind its minutes count as (`trading → study`, `dsa → study`).
+- **`os_tag_daily`** (user_id, day, parent_tag, tag, kind, app_key, minutes, source) — TaskFlow's `_area_daily`; for tags with an `app_key`, minutes = **max(TaskFlow minutes, that app's `active_minutes`)**; app minutes with no TaskFlow row that day appear under the linked tag, or `Study/<App>` if none. Without TaskFlow, it's app minutes only.
+- **`os_productive_daily`** (user_id, day, minutes, is_day_off) — sum of `os_tag_daily` where kind ∈ {study, hustle}.
+- **`os_streak`** (user_id, current, longest, last_productive_day) — days with productive minutes > 0; days off neither break nor extend; today breaks it only once over.
+- **`os_week`** (user_id, week_start, app, metric, value) — long format: per app per week the sum of `active_minutes`, `items_done`, plus Home's productive minutes and selected TaskFlow/Money extras (work, sleep avg, counters, mood/energy avg, money in/out/net). Feeds the Week screen and its this-vs-last deltas.
+- **`os_contract_health`** (app, view, exists, columns_ok, contract_version, last_updated_at, **access_ok**, **in_unions**) — one row per known or discovered app per view, live from the catalog plus each valid `_now` view's `contract_version` and `max(updated_at)`; `access_ok` = `security_invoker` and readable by signed-in users; `in_unions` = the union views already include it (valid but false means "re-run os_core.sql"). The browser-side twin of `checks.sql` queries 6, 7, 10.
 
-### 2.2 Views (all `security_invoker`, granted to `authenticated`)
-- **`os_daily_activity` / `os_apps_now`** are self-assembling unions. A `do $$` block finds every `*_dashboard_daily` and `*_dashboard_now` view whose leading columns match `CONTRACT.md`, and recreates the union over their standard columns. Re-running the file adds new apps. With no app views at all, it still creates valid empty views.
-- **`os_app_kind`**: constants mapping an app key to the kind its minutes count as: `trading → study`, `dsa → study`.
-- **`os_tag_daily`** (user_id, day, parent_tag, tag, kind, app_key, minutes, source):
-  - starts from TaskFlow's `taskflow_dashboard_area_daily`
-  - for tags with an `app_key`, minutes = **max(TaskFlow minutes, that app's `active_minutes`)**
-  - app minutes with no matching TaskFlow row that day appear under the app's linked tag, or under `Study/<app>` if no tag is linked
-- **`os_productive_daily`** (user_id, day, minutes, is_day_off): the sum of `os_tag_daily` where kind is `study` or `hustle`.
-- **`os_streak`** (user_id, current, longest, last_productive_day): days with productive minutes > 0. Days off neither break nor extend it, and today only breaks it once the day is over.
-- **`os_target_progress`** (user_id, target_id, period_start, period_end, minutes, target_minutes, pct, on_pace): for the current day or week of each active target.
-- **`os_week_summary`** (user_id, week_start, plus):
-  - productive minutes, broken down by tag as jsonb
-  - work and commute minutes
-  - average sleep
-  - nap/reset minutes
-  - tasks done and missed, deadlines missed
-  - cigarettes, weed
-  - days off
+### 2.3 What each app provides (contract views only)
+| App (data key) | Views Home reads | Gives Home | Available |
+|---|---|---|---|
+| chart-journal (`trading`) | `trading_dashboard_daily`, `_now` | chart minutes, charts studied, streak, guesses to grade, accuracy, paper P&L | **now** |
+| TaskFlow (`taskflow`) | `_daily`, `_now`, `_area_daily`, `_days_off`, `_deadlines`, **`_goals`** | time by tag, work, sleep, nap/reset, counters, tasks done/missed, mood/energy, overdue, inbox, running timer, deadlines, days off, goal progress | TaskFlow phase 4.5 (goals view needs its phase 2.8, mood/energy its phase 4.2) |
+| InteractiveDSA (`dsa`) | `dsa_dashboard_daily`, `_now` | study minutes, items done, plan day/week, catch-up + redos, streak | after DSA sync (3.5.4) |
+| Money (`money`) | `money_dashboard_daily`, `_now`, `_monthly` | month in/out/net, essentials vs discretionary, subscriptions, to categorise | Money phase 6 |
+| Later: SQL, cert | their `_daily`, `_now` | study progress | when built |
 
-  Built from the views above plus TaskFlow's daily extras.
-- **`os_contract_health`** (app, view, exists, columns_ok, contract_version): built from `information_schema`. It powers the System page and is a browser-side version of `checks.sql` queries 6, 7 and 10.
-
-### 2.3 Needed from other apps (contract requests, not reads of their tables)
-- **Money:** `money_dashboard_daily`, `_now` and `_monthly` (Money phase 6).
-- **TaskFlow** (already in its phase 4.5): `_daily`, `_now`, `_area_daily`, `_days_off`, plus a fifth view **`taskflow_dashboard_deadlines`** (user_id, task_id, title, tag, due_on, days_left, hard_deadline). It holds open tasks with a hard deadline in the next 60 days, plus every task in a project marked as an exam. It feeds the countdowns on Home, such as cert exam dates and "Pass G2".
-- **TaskFlow deep links:** documented routes that Home links to: `/timer?tag=<path>`, `/tasks?view=today`, `/insights`, `/work`, `/capture`.
-- **chart-journal, DSA:** nothing beyond their existing contract views.
+### 2.4 App registry — `src/lib/apps.ts` (one place, tested)
+For each app: `launcherKey` (as in `launcher/apps.json`, e.g. `chart-journal`; `null` until the app has a launcher entry — Money), **`dataKey`** (as in the contract, e.g. `trading`), name, port, local URL, hosted URL, icon, **`syncs`** (true only for apps that mirror a local store to the cloud: DSA) and **deep links**. The launcher's `apps.json` keeps folders and commands (never bundled into the UI). A test checks every `apps.json` entry has a matching registry entry.
+- **TaskFlow deep links** (stable routes it publishes, SPEC §11 there): `/timer?tag=<path>`, `/tasks?view=today`, `/insights`, `/work`, `/capture`, `/review`, `/goals`.
+- **chart-journal, DSA, Money:** open the app's home (no stable routes yet; add when they publish some).
 
 ## 3. Screens
-Phone tabs: **Home · Week · Trends · System**, with Settings under the profile menu. Desktop: a sidebar with the same items.
+Phone tabs: **Home · Week · Trends · System**; Settings under the profile menu. Desktop: sidebar with the same items.
 
 ### 3.1 Home (today)
-- **Header:**
-  - productive today vs goal (a ring), with "Xh left to goal" and an "on pace / behind" hint based on the time of day
-  - productive streak (🔥, days off skipped)
-  - today: work hours, last night's sleep, cigarette and weed counts (with the 7-day average)
-  - data freshness: "updated 2m ago"
-- **Today's targets:** a chip per day target, e.g. "DSA 25/60 min". Tapping it deep-links into TaskFlow's timer with that tag.
-- **Needs attention:**
-  - every app's `needs_attention` above 0, biggest first, each linking into the app
-  - shifts not yet checked against the store's numbers
-  - projects going cold
-  - "Weekly review due" on review day
-- **Money (once the Money app publishes its views):** this month in · out · **net**, subscriptions per month, and "N to categorise". Read-only, from `money_dashboard_now`; amounts are hidden behind a tap on the phone.
-- **Coming up:** hard deadlines from `taskflow_dashboard_deadlines`, with a countdown, amber within 7 days and red within 2.
-- **Apps:** a tile per app showing `status_line`, last activity and a running dot. Start/Open use the launcher when it's available, or the hosted URL otherwise.
-- **Quick links:** Start timer · Capture an idea · Open today in TaskFlow, DSA and chart-journal.
+- **Header:** productive today vs daily goal (ring) with "Xh left" and an on-pace / behind hint by time of day · productive streak (days off skipped) · work hours today · last night's sleep · counters today (`Cig 3`, `Weed 1`, with 7-day average and amber/red against TaskFlow's limits) · "updated 1 m ago".
+- **Goals today:** chips for TaskFlow's daily goals (e.g. "Study/DSA 25 / 60 min"); tap → TaskFlow `/timer?tag=…`. Weekly goals show as small bars.
+- **Needs attention:** every app's `needs_attention` > 0, biggest first, each linking to the right screen (overdue tasks, catch-up + redos, guesses to grade, transactions to categorise, unchecked shifts, cold projects). "Weekly review due" on review day → TaskFlow `/review`.
+- **Coming up:** hard deadlines from `taskflow_dashboard_deadlines` with countdown (amber ≤ 7 days, red ≤ 2).
+- **Money (when published):** this month in · out · net, subscriptions / month, to categorise; amounts hidden behind a tap on the phone.
+- **Apps:** a tile per app — `status_line`, last activity, running dot, Open / Start (launcher) — and "not published yet" for apps without views.
+- **Quick links:** Start timer · Capture · Today in TaskFlow · Open DSA · Open Chart Journal · Open Money.
 
-### 3.2 Week (targets + review)
-- This week vs last week: productive total and per tag (with arrows), work hours, average sleep, counters, tasks done and missed, deadlines missed.
-- **Targets:** a progress bar per weekly target, plus each day target's hit rate (e.g. "DSA: 4/5 days").
-- A stacked bar per day of productive time by tag. Days off are greyed.
-- **Weekly review** (a banner on Home on review day): the numbers are shown read-only, then rating, went well, didn't, and next week's focus. Save stores the review plus the frozen `snapshot`.
-- Past reviews: a list. Open one to see its snapshot and notes.
+### 3.2 Week (cross-app, read-only)
+- This week vs last week for every app side by side: productive time (and by tag), work hours, average sleep, mood/energy, counters, tasks done/missed, deadlines missed, DSA items, charts studied, money in/out/net.
+- TaskFlow goals for the week: progress bars and hit / missed per goal.
+- Stacked productive bars per day, days off greyed.
+- **Do the review in TaskFlow** → `/review` (that's where notes, ratings and the Claude summary live). Home doesn't store reviews.
 
 ### 3.3 Trends
-- Ranges: 14 days, 30 days, 90 days, 12 months.
-- **Charts:**
-  - productive time by parent tag and sub-tag (stacked)
-  - a consistency heatmap (90 days and the year, days off marked)
-  - balance: wellness, break, sleep, nap/reset
-  - work and commute hours per week
-  - cigarettes and weed per day, with a 7-day average
-  - tasks done vs missed per week
-  - money: in vs out vs net per month for 12 months, and essential vs discretionary (from `money_dashboard_monthly`)
-  - later: smoking cost per cigarette (Money smoking spend ÷ TaskFlow counter taps)
-- **Stats:** averages (7 and 30 days, days off excluded), best day, best week, and longest streak.
-- Every chart says which rule it uses where relevant, e.g. "DSA counted once (max of TaskFlow and DSA app)".
+- Ranges: 14 d, 30 d, 90 d, 12 months.
+- Productive by parent tag and sub-tag (stacked, max-rule note); consistency heatmap (90 days and the year, days off marked); balance (wellness, break, sleep, nap/reset); work and commute per week; counters per day with 7-day average; tasks done vs missed per week; money in/out/net per month and essentials vs discretionary (when published).
+- Stats: 7- and 30-day averages (days off excluded), best day, best week, longest streak.
+- Later: smoking cost per cigarette (Money smoking spend ÷ TaskFlow counter).
 
 ### 3.4 App pages
-One page per app: all its `_now` extras, plus a 30-day table of its `_daily` view showing **every** column generically, so a new column appears without code changes. Also its contract version, last update, and a link that opens the app.
+One per app: all its `_now` extras, a 30-day table of its `_daily` view showing **every** column generically, its contract version and freshness, and Open / deep links.
 
 ### 3.5 System
-- **Per app:**
-  - port and running status (launcher)
-  - Start / Stop / Open / Logs (the last 200 lines)
-  - "started by launcher" vs "already running" (e.g. a dev server from a Claude session; Stop is disabled for those)
-  - data freshness: last `updated_at`, flagged after 2 days
-  - contract health from `os_contract_health`
-- **Database:**
-  - the last activity of any kind, with a warning after 5 quiet days, because free Supabase projects pause after about a week
-  - the last backup date, with a warning after 8 days
-- Start all · Stop all (only processes the launcher started).
+- **Apps** (built in phase 1): status, port, started-by-launcher vs already running, Start / Stop / Open / Logs, Start all / Stop all.
+- **Data health:** per app — published or not, contract OK (from `os_contract_health`), and "re-run os_core.sql" when a new valid view isn't in the unions yet. **Stale** (a warning) applies only to apps with `syncs: true` (DSA), when the `_now` view's `updated_at` is more than 2 days old: only an app that syncs can have data that is out of date. Every published app also shows **last activity** (`last_activity_at`) as plain information, never a warning — a quiet week is not a fault.
+- **Database:** last activity anywhere (warning after 5 quiet days — free Supabase projects pause after about a week); last backup (warning after 8 days).
 
 ### 3.6 Settings
-- daily goal, week start, review day
-- **target editor** (add, edit, reorder, pause; the tag picker reads tag paths from `os_tag_daily` history plus TaskFlow's tag list in its `_area_daily`)
-- hosted app URLs
-- theme
-- sign out
+Daily productive goal · week start · hidden apps and card order · theme · sample-data toggle (dev only) · sign out. (Per-tag goals: link to TaskFlow `/goals`.)
 
 ## 4. Launcher (`launcher/`, 127.0.0.1:5171)
 - `apps.json` lists each app's key, name, folder, start command, port, local URL and hosted URL. chart-journal starts with `sh start.sh` (5173), DSA with `npm run dev` (5174), TaskFlow with `npm run dev` (5175).
@@ -185,26 +139,18 @@ One page per app: all its `_now` extras, plus a 30-day table of its `_daily` vie
 - `../start-os.sh` starts the launcher and Home (plus every app with `--all`, skipping and naming any whose port is already up) and opens the browser. `launcher/com.personalos.start.plist` runs it at login.
 
 ## 5. Backups
-- `launcher/backup.sh` runs `pg_dump` with `SUPABASE_DB_URL` from the root `.env.local`.
-- It writes `../backups/YYYY-MM-DD.sql.gz` (gitignored) and keeps 8.
-- It runs weekly through launchd, and System shows the date.
-- `docs/RESTORE.md` lists the exact restore steps, tested once on local Postgres.
+- `launcher/backup.sh` runs `pg_dump` with `SUPABASE_DB_URL` from the **root** `.env.local`, writes `../backups/YYYY-MM-DD.sql.gz` (gitignored), keeps the newest 8, runs weekly through launchd; System shows the date.
+- `docs/RESTORE.md`: exact restore steps, tested once on local Postgres.
 
 ## 6. Hosting (after it works locally)
-- A Vercel project from the PersonalOS repo, with root directory `dashboard/`, on `os.<my-domain>`.
-- Env: the Supabase URL and anon key. `VITE_LAUNCHER_URL` stays unset.
-- Add the URL in Supabase → Authentication → URL Configuration.
-- PWA install (home-screen icon), same as TaskFlow.
+- Vercel project from the PersonalOS repo, root directory `dashboard/`, on `os.<my-domain>`; env = Supabase URL + anon key; `VITE_LAUNCHER_URL` unset. Add the URL in Supabase → Authentication → URL Configuration. PWA install like TaskFlow.
 
 ## 7. Later (not v1)
-- **AI weekly summary:** a Supabase Edge Function that sends the week's snapshot to Claude and stores a short written summary plus 2–3 suggestions in `os_reviews`. It uses the API key secret, and the key never reaches the browser.
-- **Nudges:** web push in the evening, e.g. "1h 20m left to your goal" or "review due".
-- Year in review, a monthly report, and a command palette (⌘K) of deep links.
-- The per-app access allowlist (`os_can_use`) if anyone else ever uses my project.
+- Cross-app monthly report / year in review.
+- Smoking cost per cigarette (needs Money phase 6).
+- ⌘K command palette of deep links.
+- Per-app access allowlist (`os_can_use`) if anyone else ever uses my project.
+- (Dropped: Home's own AI weekly summary — TaskFlow's Claude weekly summary covers it. If a cross-app summary is wanted later, it reads `os_week`.)
 
 ## 8. Non-goals
-- No data entry about activity.
-- No writes to other apps.
-- No reading app tables.
-- No copies of app logic.
-- No real-time stopwatch. TaskFlow shows the running timer. Home shows "⏱ DSA 25m" from TaskFlow's `_now`.
+No data entry about activity · no writes to other apps · no reading app tables · no copies of app logic · no goals or reviews of its own · no live timer.

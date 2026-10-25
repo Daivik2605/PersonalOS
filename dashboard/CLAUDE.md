@@ -5,6 +5,7 @@ Read `../CLAUDE.md` (system rules — they all apply here), `../docs/CAPABILITIE
 - App key `os`, prefix `os_` (buckets `os-`), UI port **5170** strict, launcher **127.0.0.1:5171**.
 - This folder is part of the **PersonalOS root repo** (not its own repo). Never run git.
 - **Read-only towards other apps.** Read only `*_dashboard_*` views and the documented columns in each app's `docs/DATA_CONTRACT.md`. Never read app tables, never write anything outside `os_*`. To change something in an app, link to it (deep link) — don't do it from here.
+- **Final spec v2 (2026-10-25):** Home stores only `os_settings`. Goals, shutdown, weekly review and the Claude weekly summary belong to TaskFlow — Home shows them and deep-links to `/goals` and `/review`. Every app has a `launcherKey` and a `dataKey` (chart-journal → `trading`) in `src/lib/apps.ts`. Build every screen in sample-data mode first (fixtures shaped exactly like the contract views; dev only, with a banner). No emojis in the UI.
 - Never re-implement an app's rules (streaks, statuses, pay). If a number is missing, ask for a column in that app's contract view instead.
 - All SQL lives in `../supabase/os_core.sql`: idempotent, never drops user data, tested on local Postgres with Supabase stand-ins (see `../taskflow/supabase/tests/` for the pattern) before I run it.
 - Days are America/Toronto dates via `src/lib/time.ts` only.
