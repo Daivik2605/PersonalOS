@@ -1,0 +1,20 @@
+# Each app is its own git repo, so the root repo ignores them
+/chart-journal/
+/InteractiveDSA/
+/timer/
+/taskflow/
+/sql/
+/cert/
+/jobs/
+/habits-bot/
+/money/
+# Secrets and local data
+.env
+.env.local
+*.local
+backups/
+.DS_Store
+node_modules/
+
+# Claude Code local settings (may contain allowed commands with secrets)
+.claude/settings.local.json
