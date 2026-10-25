@@ -1,0 +1,29 @@
+[
+  {
+    "key": "chart-journal",
+    "name": "Chart Journal",
+    "folder": "chart-journal",
+    "command": ["sh", "start.sh"],
+    "port": 5173,
+    "url": "http://localhost:5173",
+    "hostedUrl": null
+  },
+  {
+    "key": "dsa",
+    "name": "InteractiveDSA",
+    "folder": "InteractiveDSA",
+    "command": ["npm", "run", "dev"],
+    "port": 5174,
+    "url": "http://localhost:5174",
+    "hostedUrl": null
+  },
+  {
+    "key": "taskflow",
+    "name": "TaskFlow",
+    "folder": "taskflow",
+    "command": ["npm", "run", "dev"],
+    "port": 5175,
+    "url": "http://localhost:5175",
+    "hostedUrl": null
+  }
+]

@@ -9,6 +9,8 @@ Read `../CLAUDE.md` (system rules — they all apply here), `../docs/CAPABILITIE
 - All SQL lives in `../supabase/os_core.sql`: idempotent, never drops user data, tested on local Postgres with Supabase stand-ins (see `../taskflow/supabase/tests/` for the pattern) before I run it.
 - Days are America/Toronto dates via `src/lib/time.ts` only.
 - Business rules in pure, unit-tested modules in `src/lib/` (`time`, `productive`, `targets`, `review`, `health`). Components stay thin.
-- The launcher only runs commands listed in `launcher/apps.json`, only stops processes it started (by PID), never kills by name or pattern — other PersonalOS apps and their Claude sessions run on this Mac.
+- The launcher only runs commands listed in `launcher/apps.json` (argv array, no shell). It spawns each app **detached as its own process group** and stops the **whole group** (`kill(-pgid)`), because `npm run dev` runs Vite as a child. It only ever signals groups it spawned: never by name, pattern or port owner, and never an app it didn't start (other PersonalOS apps and their Claude sessions run on this Mac).
+- Launcher browser safety: reject any request whose `Origin` isn't exactly `http://localhost:5170` or whose `Host` isn't loopback on 5171; every POST needs the header `X-PersonalOS: 1`. The dashboard calls `http://127.0.0.1:5171` (not `localhost`).
+- Port checks always try both `127.0.0.1` and `::1` (Vite on macOS often binds `::1` only): `launcher/ports.mjs` is the only implementation, also used by `start-os.sh`.
 - Anon key only, in `.env.local`. The DB password for backups lives only in the root `../.env.local`.
 - Every phase ends with `npm test`, `npm run typecheck`, `npm run build` passing and a hand-check list. Update the phase **Status** in `docs/BUILD_PLAN.md`, the registry in `../CLAUDE.md`, and `../docs/DECISIONS.md` for anything that changed.

@@ -13,12 +13,13 @@ How to run a phase: open a terminal in `PersonalOS/` (the root, because this app
 3. For backups (phase 7): Supabase → Project Settings → Database → copy the **connection string** with your DB password into the **root** `PersonalOS/.env.local` as `SUPABASE_DB_URL=…`. Never put it in an app folder.
 
 ### Phase 1 — Shell, sign-in, launcher, System page
-**Status:** not started
+**Status:** built 2026-10-25 (automated checks pass: `npm test`, `npm run typecheck`, `npm run build`); waiting for your hand-check below. Shell (4 tabs + sidebar, theme, offline banner), sign-in/out, `time.ts` + tests, placeholder Home/Week/Trends, launcher (`launcher/*.mjs`, 42 tests on real sockets and processes), System page apps section, `../start-os.sh`, README. Not done on purpose: contract health / freshness / backup sections of System (phases 2 and 7); Supabase-unreachable banner (phase 4, with the first data screens). Next: phase 2.
 > Read CLAUDE.md, dashboard/CLAUDE.md, docs/CAPABILITIES.md, docs/ARCHITECTURE.md and dashboard/docs/SPEC.md. Do Phase 1 of dashboard/docs/BUILD_PLAN.md: plan first and wait for my approval.
 > Scaffold `dashboard/` (Vite + React + TS + Tailwind + React Router + Recharts + Vitest, port 5170 strict) with the shell from SPEC §3 (phone tabs Home · Week · Trends · System; desktop sidebar; dark mode; offline banner), sign-in/sign-out with the shared account, `src/lib/time.ts` copied from TaskFlow with its tests, and placeholder screens. Build the launcher (SPEC §4) with `launcher/apps.json` for chart-journal, InteractiveDSA and TaskFlow, all endpoints except `/backup`, the safety rules, and tests for the command allowlist and "only stop what I started". Build the **System** page's app section (SPEC §3.5: status, start/stop/open/logs, "already running" detection, start all / stop all) and `../start-os.sh`. Hide launcher features when `VITE_LAUNCHER_URL` is unset. Write `dashboard/README.md` and `.env.example`.
 
 **Done when:** `sh start-os.sh` opens Home; System shows all three apps; Start brings chart-journal up and its dot turns green; Stop stops it; an app already running from a Claude session shows as running with Stop disabled; killing the launcher shows "launcher offline" and nothing else breaks.
 **You:** use `start-os.sh --all` instead of starting apps by hand for a day.
+**Hand-check (needs your real apps):** (1) `sh start-os.sh` opens http://localhost:5170, sign in, System lists all three apps. (2) With nothing on 5173, Start chart-journal: dot turns green. Stop: dot goes grey, and `lsof -nP -iTCP:5173 -sTCP:LISTEN` prints nothing. (3) An app running from a Claude session (e.g. TaskFlow on 5175) shows "Already running" with Stop greyed out. (4) `sh start-os.sh --all` skips running apps and names them. (5) Ctrl+C the script, then run `npm run dev` in `dashboard/` alone: System says "Launcher offline" and the rest still works. (6) Open http://127.0.0.1:5170 instead: System says to open http://localhost:5170.
 
 ### Phase 2 — Data foundation (`supabase/os_core.sql`, part 1)
 **Status:** not started
@@ -57,6 +58,8 @@ How to run a phase: open a terminal in `PersonalOS/` (the root, because this app
 ### Phase 7 — Backups, login start, health warnings
 **Status:** not started
 > Do Phase 7 of dashboard/docs/BUILD_PLAN.md (SPEC §3.5 database section, §4 launchd, §5): plan first. `launcher/backup.sh` + `/backup` endpoint + weekly launchd job; `docs/RESTORE.md`, tested by restoring a dump into local Postgres; launchd plist for `start-os.sh` at login with install/uninstall steps; System warnings for stale app data (2 days), quiet database (5 days) and old backup (8 days).
+
+**launchd note:** launchd starts jobs with a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), so `npm`, `node`, `python` and `pg_dump` may not be found. The plist must set `EnvironmentVariables` → `PATH` explicitly (or use absolute paths), and `launcher/backup.sh` must do the same. (`start-os.sh` already prepends `/opt/homebrew/bin:/usr/local/bin`; check where `node` and `pg_dump` actually are with `command -v`.)
 
 **Done when:** a backup file appears in `backups/`, a restore into local Postgres works, and after a reboot Home opens by itself.
 

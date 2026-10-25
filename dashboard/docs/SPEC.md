@@ -175,12 +175,14 @@ One page per app: all its `_now` extras, plus a 30-day table of its `_daily` vie
   - `GET /logs/:key`
   - `GET /backup`
 - **Safety:**
-  - Bind to 127.0.0.1 only.
-  - CORS allows only `http://localhost:5170`.
+  - Bind to 127.0.0.1 only, and reject any `Host` that isn't `127.0.0.1:5171` or `localhost:5171` (DNS rebinding).
+  - CORS alone doesn't stop another website from sending a simple POST (the request still runs), so the server itself rejects any request whose `Origin` isn't exactly `http://localhost:5170`, and requires `X-PersonalOS: 1` on every POST so browsers must preflight. Home calls the launcher at `http://127.0.0.1:5171` and, on any other page origin, shows "Open PersonalOS at http://localhost:5170 to use the launcher".
   - Only run commands from `apps.json`.
-  - Only stop processes it started, by PID.
+  - Spawn each app detached in its own process group; Stop signals the whole group (SIGTERM, then SIGKILL after 5 s) and waits until the port is free. Only groups the launcher spawned are ever signalled. Apps started elsewhere show "already running" with Stop disabled.
+  - Port checks try both `127.0.0.1` and `::1`.
+  - Each app's log file is truncated every time the launcher starts it and capped at about 1 MB while it runs.
   - Never restart apps in a loop.
-- `../start-os.sh` starts the launcher and Home (plus every app with `--all`) and opens the browser. `launcher/com.personalos.start.plist` runs it at login.
+- `../start-os.sh` starts the launcher and Home (plus every app with `--all`, skipping and naming any whose port is already up) and opens the browser. `launcher/com.personalos.start.plist` runs it at login.
 
 ## 5. Backups
 - `launcher/backup.sh` runs `pg_dump` with `SUPABASE_DB_URL` from the root `.env.local`.
