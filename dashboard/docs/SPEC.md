@@ -99,15 +99,16 @@ Phone tabs: **Home · Week · Trends · System**; Settings under the profile men
 - **Quick links:** Start timer · Capture · Today in TaskFlow · Open DSA · Open Chart Journal · Open Money.
 
 ### 3.2 Week (cross-app, read-only)
-- This week vs last week for every app side by side: productive time (and by tag), work hours, average sleep, mood/energy, counters, tasks done/missed, deadlines missed, DSA items, charts studied, money in/out/net.
+- This week vs last week for every app side by side: productive time (and by tag), work and commute hours, average sleep, mood/energy, counters, tasks done/missed, deadlines missed, DSA items, charts studied, money in/out/net. A week with no row is "No data", never 0. Only cigarettes, weed, missed tasks and missed deadlines are lower-is-better (a rise is amber "worse"); every change is also written as text. **Reads only those two weeks** (`day >= last week's start` in each query).
 - TaskFlow goals for the week: progress bars and hit / missed per goal.
 - Stacked productive bars per day, days off greyed.
 - **Do the review in TaskFlow** → `/review` (that's where notes, ratings and the Claude summary live). Home doesn't store reviews.
 
 ### 3.3 Trends
-- Ranges: 14 d, 30 d, 90 d, 12 months.
+- Ranges: 14 d, 30 d, 90 d, 12 months (`?range=`). **Each view is queried only for the range shown** (`day >= start` in the Supabase query, paged only when a range exceeds 1,000 rows): the 30-day range reads one day more than it shows (for the 30-day average) and TaskFlow's daily view 6 days more (trailing 7-day average). Day buckets for 14/30 d, week buckets for 90 d, month buckets for 12 m; every chart has a "Show as table".
 - Productive by parent tag and sub-tag (stacked, max-rule note); consistency heatmap (90 days and the year, days off marked); balance (wellness, break, sleep, nap/reset); work and commute per week; counters per day with 7-day average; tasks done vs missed per week; money in/out/net per month and essentials vs discretionary (when published).
-- Stats: 7- and 30-day averages (days off excluded), best day, best week, longest streak.
+- Stats: 7- and 30-day averages (the days before today; days off excluded; days before my first productive day are not zeros; the 30-day average needs a 30-day range or longer), best day, best week (finished weeks inside the range only), longest streak (all time).
+- Heatmap levels are relative to the daily goal: nothing / under half / under the goal / goal reached, days off hatched, days before the first row dashed.
 - Later: smoking cost per cigarette (Money smoking spend ÷ TaskFlow counter).
 
 ### 3.4 App pages

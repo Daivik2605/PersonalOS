@@ -6,7 +6,10 @@ import { productiveDaily, streak, tagDaily } from '../lib/productive'
 import { weekRows } from '../lib/week'
 
 export const SAMPLE_USER = '00000000-0000-4000-8000-000000000001'
+/** The window every hand-calculated test uses (the newest 14 days, exactly as before). */
 export const SAMPLE_DAYS = 14
+/** Total history, so Week and Trends have 12 months to draw. Older days follow a fixed pattern (see `old*` below). */
+export const SAMPLE_HISTORY_DAYS = 400
 
 type Daily = DailyRow & Extra
 type Now = NowRow & Extra
@@ -40,13 +43,21 @@ function now(app: string, updatedAt: string, f: Omit<NowRow, 'user_id' | 'app' |
 
 /** `today` is a Toronto day; `at` is the real current instant (for updated_at columns). */
 export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)): SampleViews {
-  const days = Array.from({ length: SAMPLE_DAYS }, (_, i) => addDays(today, i - (SAMPLE_DAYS - 1))) // oldest .. today
-  const dayOff = days[5]!
+  const N = SAMPLE_HISTORY_DAYS
+  const base = N - SAMPLE_DAYS // index of the first day of the hand-checked 14-day window
+  const days = Array.from({ length: N }, (_, i) => addDays(today, i - (N - 1))) // oldest .. today
+  const pos = (i: number, k: number) => (((i - base) % k) + k) % k // position inside the 14-day pattern, valid for older days too
+  // Older days: a fixed pattern. Every 9th day (and the day before the window) is quiet, so no streak runs past 8 days and the
+  // window's streak stays exactly its own; every 20th day is a day off.
+  const quiet = (g: number) => g % 9 === 0 || g === base - 1
+  const full = <T,>(win: T[], old: (g: number) => T): T[] => days.map((_, g) => (g >= base ? win[g - base]! : old(g)))
+  const oldDow = (g: number) => weekdayIndex(days[g]!)
+  const dayOffs = new Set(days.filter((_, g) => g === base + 5 || (g < base && g % 20 === 10 && !quiet(g))))
   const stamp = (d: Day) => iso(d, '21:30')
   const upd = at.toISOString()
 
   // Chart Journal ("trading"): study minutes, streak resets once.
-  const tradingMinutes = [35, 40, 0, 45, 50, 30, 0, 55, 60, 40, 45, 50, 35, 25]
+  const tradingMinutes = full([35, 40, 0, 45, 50, 30, 0, 55, 60, 40, 45, 50, 35, 25], (g) => (quiet(g) || g % 4 === 1 ? 0 : 20 + ((g * 37 + 11) % 100) % 40))
   let tStreak = 0
   const trading_dashboard_daily = days.flatMap((d, i) => {
     const m = tradingMinutes[i]!
@@ -54,26 +65,27 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
     if (m === 0) return []
     const charts = Math.max(1, Math.round(m / 12))
     return [daily('trading', d, stamp(d), { active_minutes: m, items_done: charts, items_planned: 6, streak_current: tStreak, headline: `${charts} charts · 1 journal` },
-      { journal_entries: 1, trades_opened: i === 8 ? 1 : 0, trades_closed: i === 11 ? 1 : 0 })]
+      { journal_entries: 1, trades_opened: pos(i, 14) === 8 ? 1 : 0, trades_closed: pos(i, 14) === 11 ? 1 : 0 })]
   })
 
   // TaskFlow
-  const tfStudy = [60, 75, 50, 0, 90, 0, 40, 65, 80, 55, 70, 85, 60, 35]
-  const tfHustle = [30, 0, 45, 0, 0, 0, 60, 30, 0, 45, 20, 0, 40, 0]
-  const tfWork = [0, 450, 480, 0, 450, 0, 0, 450, 480, 450, 0, 480, 450, 0]
-  const tfSleep = [440, 470, 410, 500, 455, 480, 430, 465, 420, 450, 475, 445, 460, 430]
+  const tfStudy = full([60, 75, 50, 0, 90, 0, 40, 65, 80, 55, 70, 85, 60, 35], (g) => (quiet(g) || g % 5 === 2 ? 0 : 30 + ((g * 13) % 60)))
+  const tfHustle = full([30, 0, 45, 0, 0, 0, 60, 30, 0, 45, 20, 0, 40, 0], (g) => (quiet(g) || g % 3 !== 0 ? 0 : 20 + (g % 25)))
+  const tfWork = full([0, 450, 480, 0, 450, 0, 0, 450, 480, 450, 0, 480, 450, 0], (g) => (!dayOffs.has(days[g]!) && oldDow(g) >= 1 && oldDow(g) <= 5 && g % 11 !== 0 ? 450 + (g % 3) * 15 : 0))
+  const tfSleep = full([440, 470, 410, 500, 455, 480, 430, 465, 420, 450, 475, 445, 460, 430], (g) => 400 + ((g * 17) % 100))
+  const cigs = full([3, 5, 2, 4, 6, 1, 3, 4, 2, 5, 3, 4, 2, 3], (g) => 1 + ((g * 5) % 6))
   let fStreak = 0
   const taskflow_dashboard_daily = days.map((d, i) => {
     const productive = tfStudy[i]! + tfHustle[i]!
-    const off = d === dayOff
+    const off = dayOffs.has(d)
     if (productive > 0) fStreak += 1
     else if (!off) fStreak = 0
     return daily('taskflow', d, stamp(d),
-      { active_minutes: productive, items_done: 2 + (i % 3), items_planned: 4, streak_current: fStreak, headline: `${Math.floor(productive / 60)}h ${productive % 60}m productive · ${2 + (i % 3)} done` },
-      { work_minutes: tfWork[i]!, commute_minutes: tfWork[i]! > 0 ? 60 : 0, work_unverified_shifts: i === 1 ? 1 : 0, study_minutes: tfStudy[i]!, hustle_minutes: tfHustle[i]!,
-        wellness_minutes: 30, break_minutes: 40, nap_minutes: i % 4 === 0 ? 25 : 0, reset_minutes: i % 4 === 0 ? 10 : 0, sleep_minutes: tfSleep[i]!, personal_minutes: 90,
-        tasks_missed: i % 5 === 0 ? 1 : 0, deadlines_missed: 0, cigarettes: [3, 5, 2, 4, 6, 1, 3, 4, 2, 5, 3, 4, 2, 3][i]!, weed: i % 3 === 0 ? 1 : 0,
-        is_day_off: off, activities_done: 1 + (i % 2), goals_hit: 2 + (i % 2), goals_total: 4, mood: 3 + (i % 3), energy: 2 + (i % 4) })
+      { active_minutes: productive, items_done: 2 + (pos(i, 3)), items_planned: 4, streak_current: fStreak, headline: `${Math.floor(productive / 60)}h ${productive % 60}m productive · ${2 + (pos(i, 3))} done` },
+      { work_minutes: tfWork[i]!, commute_minutes: tfWork[i]! > 0 ? 60 : 0, work_unverified_shifts: i === base + 1 ? 1 : 0, study_minutes: tfStudy[i]!, hustle_minutes: tfHustle[i]!,
+        wellness_minutes: 30, break_minutes: 40, nap_minutes: pos(i, 4) === 0 ? 25 : 0, reset_minutes: pos(i, 4) === 0 ? 10 : 0, sleep_minutes: tfSleep[i]!, personal_minutes: 90,
+        tasks_missed: pos(i, 5) === 0 ? 1 : 0, deadlines_missed: 0, cigarettes: cigs[i]!, weed: pos(i, 3) === 0 ? 1 : 0,
+        is_day_off: off, activities_done: 1 + (pos(i, 2)), goals_hit: 2 + (pos(i, 2)), goals_total: 4, mood: 3 + (pos(i, 3)), energy: 2 + (pos(i, 4)) })
   })
   const taskflow_dashboard_now = [now('taskflow', upd,
     { contract_version: 1, status_line: '3 left today · 2 overdue · DSA 25m', needs_attention: 3, attention_label: 'overdue tasks / unchecked shifts', last_activity_at: hoursAgo(at, 1) },
@@ -89,7 +101,7 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
     area(d, 'Wellness', 'Gym', 'wellness', null, 30),
     area(d, 'Break', 'Break', 'break', null, 40), // time logged on the parent itself: tag = parent, tag_path = "Break"
   ])
-  const taskflow_dashboard_days_off: TaskflowDaysOffRow[] = [{ user_id: SAMPLE_USER, day: dayOff, kind: 'rest', label: 'Rest day' }]
+  const taskflow_dashboard_days_off: TaskflowDaysOffRow[] = [...dayOffs].sort().map((day) => ({ user_id: SAMPLE_USER, day, kind: 'rest', label: 'Rest day' }))
   const taskflow_dashboard_deadlines: TaskflowDeadlineRow[] = [
     { user_id: SAMPLE_USER, task_id: 'sample-t1', title: 'Pass G2', tag: 'Personal', due_on: addDays(today, 2), days_left: 2, hard_deadline: true },
     { user_id: SAMPLE_USER, task_id: 'sample-t2', title: 'Tableau exam', tag: 'Study/Cert', due_on: addDays(today, 6), days_left: 6, hard_deadline: true },
@@ -109,13 +121,13 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
   ]
 
   // InteractiveDSA
-  const dsaMinutes = [0, 55, 50, 0, 60, 45, 0, 40, 55, 50, 0, 60, 45, 25]
+  const dsaMinutes = full([0, 55, 50, 0, 60, 45, 0, 40, 55, 50, 0, 60, 45, 25], (g) => (quiet(g) || g % 3 !== 1 ? 0 : 30 + (g % 30)))
   let dStreak = 0
   const dsa_dashboard_daily = days.flatMap((d, i) => {
     const m = dsaMinutes[i]!
     dStreak = m > 0 ? dStreak + 1 : 0
-    if (m === 0 && i % 3 !== 0) return []
-    const done = m > 0 ? 2 + (i % 3) : 0
+    if (m === 0 && pos(i, 3) !== 0) return []
+    const done = m > 0 ? 2 + (pos(i, 3)) : 0
     return [daily('dsa', d, stamp(d), { active_minutes: m, items_done: done, items_planned: 4, streak_current: dStreak, headline: m > 0 ? `${done} problems · quiz 24/30` : 'missed' },
       { week: 3, plan_day_index: 14 + i, plan_day_id: `w3d${i}`, status: m > 0 ? 'done' : 'missed', items_total: 4, items_ticked: done, problems_attempted: done, solved_alone: Math.max(0, done - 1),
         needed_hint: 1, needed_solution: 0, failed: 0, coding_minutes: Math.round(m * 0.6), study_minutes: m, quiz_minutes: Math.round(m * 0.2), quiz_answered: 30, quiz_correct: 24,
@@ -127,18 +139,27 @@ export function buildSampleViews(today: Day, at: Date = torontoMidnight(today)):
 
   // Money
   const money_dashboard_daily = days.map((d, i) => {
-    const out = [0, 4200, 0, 1850, 12500, 0, 3300, 0, 2400, 0, 8800, 1500, 0, 2100][i]!
-    return daily('money', d, stamp(d), { active_minutes: 0, items_done: out > 0 ? 2 : 0, items_planned: null, streak_current: null, headline: `$${(out / 100).toFixed(0)} out · $${i === 4 ? '2600' : '0'} in` },
-      { out_cents: out, in_cents: i === 4 ? 260000 : 0, essential_out_cents: Math.round(out * 0.6), discretionary_out_cents: Math.round(out * 0.4), smoking_out_cents: i % 3 === 0 ? 1400 : 0 })
+    const out = full([0, 4200, 0, 1850, 12500, 0, 3300, 0, 2400, 0, 8800, 1500, 0, 2100], (g) => (g % 5 === 0 ? 1500 + (g % 7) * 450 : 0))[i]!
+    const paid = i >= base ? i === base + 4 : i % 14 === 3 // a paycheque every 14 days in the older history; day 4 of the window
+    return daily('money', d, stamp(d), { active_minutes: 0, items_done: out > 0 ? 2 : 0, items_planned: null, streak_current: null, headline: `$${(out / 100).toFixed(0)} out · $${paid ? '2600' : '0'} in` },
+      { out_cents: out, in_cents: paid ? 260000 : 0, essential_out_cents: Math.round(out * 0.6), discretionary_out_cents: Math.round(out * 0.4), smoking_out_cents: pos(i, 3) === 0 ? 1400 : 0 })
   })
   const money_dashboard_now = [now('money', upd,
     { contract_version: 1, status_line: 'Oct: $2,140 out · $2,600 in · net +$460', needs_attention: 6, attention_label: 'to categorise / review', last_activity_at: hoursAgo(at, 30) },
     { month_in_cents: 260000, month_out_cents: 214000, month_net_cents: 46000, subscriptions_monthly_cents: 8900, last_import_on: addDays(today, -1), days_since_import: 1, unknown_pct: 6 })]
   const month = (back: number): Day => { const m = new Date(`${today}T12:00:00Z`); m.setUTCDate(1); m.setUTCMonth(m.getUTCMonth() - back); return m.toISOString().slice(0, 10) }
-  const money_dashboard_monthly: MoneyMonthlyRow[] = [2, 1, 0].map((back, i) => ({
-    user_id: SAMPLE_USER, month: month(back), in_cents: 260000, out_cents: [231000, 198000, 214000][i]!, net_cents: 260000 - [231000, 198000, 214000][i]!,
-    essential_cents: [150000, 140000, 138000][i]!, discretionary_cents: [81000, 58000, 76000][i]!, by_category: { 'Housing/Rent': 95000, 'Food/Groceries': 42000, 'Transport/Transit': 18000, 'Food/Eating out': 31000, 'Subscriptions': 8900 },
-  }))
+  // Twelve months, oldest first. The newest three are the hand-checked ones; older months follow a fixed pattern.
+  const recent = { out: [231000, 198000, 214000], essential: [150000, 140000, 138000], discretionary: [81000, 58000, 76000] }
+  const money_dashboard_monthly: MoneyMonthlyRow[] = Array.from({ length: 12 }, (_, k) => 11 - k).map((back) => {
+    const r = 2 - back // 0..2 for the newest three months
+    const out = r >= 0 ? recent.out[r]! : 180000 + ((back * 37000) % 60000)
+    const essential = r >= 0 ? recent.essential[r]! : Math.round(out * 0.64)
+    return {
+      user_id: SAMPLE_USER, month: month(back), in_cents: 260000, out_cents: out, net_cents: 260000 - out,
+      essential_cents: essential, discretionary_cents: r >= 0 ? recent.discretionary[r]! : out - essential,
+      by_category: { 'Housing/Rent': 95000, 'Food/Groceries': 42000, 'Transport/Transit': 18000, 'Food/Eating out': 31000, 'Subscriptions': 8900 },
+    }
+  })
 
   return {
     trading_dashboard_daily,

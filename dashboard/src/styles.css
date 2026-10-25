@@ -3,3 +3,7 @@
 
 html, body, #root { height: 100%; }
 body { @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased; }
+
+/* Chart tooltips follow the theme (Recharts draws them in SVG/HTML outside Tailwind's reach). */
+:root { --tt-bg: #ffffff; --tt-fg: #0f172a; --tt-border: #cbd5e1; }
+.dark { --tt-bg: #0f172a; --tt-fg: #f1f5f9; --tt-border: #334155; }

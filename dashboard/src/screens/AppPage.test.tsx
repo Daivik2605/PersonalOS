@@ -36,7 +36,7 @@ describe('AppPage', () => {
     const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent)
     expect(headers.slice(0, 8)).toEqual(['day', 'app', 'active minutes', 'items done', 'items planned', 'streak current', 'headline', 'updated at'])
     expect(headers).toContain('quiz correct'); expect(headers).toContain('catchup queue size'); expect(headers).not.toContain('user id')
-    expect(within(table).getAllByRole('row')).toHaveLength(1 + v.dsa_dashboard_daily.length)
+    expect(within(table).getAllByRole('row')).toHaveLength(1 + 30) // the last 30 days of a longer history, newest first
     expect(screen.getByRole('link', { name: 'Open InteractiveDSA' })).toHaveAttribute('href', 'http://localhost:5174')
   })
 

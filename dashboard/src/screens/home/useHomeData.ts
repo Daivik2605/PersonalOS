@@ -27,7 +27,9 @@ export function useHomeData(): HomeData {
   const health = useMemo(() => (healthRows.data ? allAppHealth(healthRows.data, nowRows.data ?? [], now) : null), [healthRows.data, nowRows.data, now])
   const readable = useMemo(() => readableApps(health ?? []), [health])
   const tf = readable.has('taskflow')
-  const tfDaily = useDashboardView('taskflow_dashboard_daily', tf, 8)
+  const tfDaily = useDashboardView('taskflow_dashboard_daily', tf, { days: 8 })
+  // The earliest row (not only the last 8 days) tells where TaskFlow's history starts, so the counter average skips days before it.
+  const tfFirst = useDashboardView('taskflow_dashboard_daily', tf, { earliest: true })
   const tfNow = useDashboardView('taskflow_dashboard_now', tf)
   const goals = useDashboardView('taskflow_dashboard_goals', tf)
   const deadlines = useDashboardView('taskflow_dashboard_deadlines', tf)
@@ -39,11 +41,11 @@ export function useHomeData(): HomeData {
   const loaded = !!health && !!productive.data && !!nowRows.data
   const model = useMemo(() => (!loaded ? null : buildHome({
     now, dailyGoalMinutes: goal, health: health!, appsNow: nowRows.data!, productive: productive.data, streak: streak.data,
-    daysOff: daysOff.data as { day: string }[] | null, tfDaily: tfDaily.data as Row[] | null, tfNow: (tfNow.data?.[0] as Row | undefined) ?? null,
+    daysOff: daysOff.data as { day: string }[] | null, tfDaily: tfDaily.data as Row[] | null, tfFirstDay: tfFirst.data?.map((r) => String(r.day)).sort()[0] ?? null, tfNow: (tfNow.data?.[0] as Row | undefined) ?? null,
     goals: goals.data as unknown as TaskflowGoalRow[] | null, deadlines: deadlines.data as unknown as TaskflowDeadlineRow[] | null,
     moneyNow: (moneyNow.data?.[0] as Row | undefined) ?? null, hiddenApps,
-  })), [loaded, now, goal, health, nowRows.data, productive.data, streak.data, daysOff.data, tfDaily.data, tfNow.data, goals.data, deadlines.data, moneyNow.data, hiddenApps])
+  })), [loaded, now, goal, health, nowRows.data, productive.data, streak.data, daysOff.data, tfDaily.data, tfFirst.data, tfNow.data, goals.data, deadlines.data, moneyNow.data, hiddenApps])
 
-  const error = [healthRows, nowRows, productive, streak, tfDaily, tfNow, goals, deadlines, daysOff, moneyNow].map((v) => v.error).find((e) => e) ?? null
+  const error = [healthRows, nowRows, productive, streak, tfDaily, tfFirst, tfNow, goals, deadlines, daysOff, moneyNow].map((v) => v.error).find((e) => e) ?? null
   return { model, health, error, now, hiddenApps, cardOrder: settings?.card_order ?? [] }
 }

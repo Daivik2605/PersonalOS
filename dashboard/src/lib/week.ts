@@ -5,7 +5,7 @@ import { addDays, weekBounds, type Day } from './time'
 
 /** Which TaskFlow daily extras become weekly metrics, and how (sleep averages only the days that have sleep). Mirrors os_core.sql. */
 export const TASKFLOW_WEEK_METRICS: ReadonlyArray<{ column: string; agg: 'sum' | 'avg' }> = [
-  { column: 'work_minutes', agg: 'sum' }, { column: 'cigarettes', agg: 'sum' }, { column: 'weed', agg: 'sum' },
+  { column: 'work_minutes', agg: 'sum' }, { column: 'commute_minutes', agg: 'sum' }, { column: 'cigarettes', agg: 'sum' }, { column: 'weed', agg: 'sum' },
   { column: 'tasks_missed', agg: 'sum' }, { column: 'deadlines_missed', agg: 'sum' },
   { column: 'sleep_minutes', agg: 'avg' }, { column: 'mood', agg: 'avg' }, { column: 'energy', agg: 'avg' },
 ]

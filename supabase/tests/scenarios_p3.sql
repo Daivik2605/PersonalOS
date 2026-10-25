@@ -45,13 +45,13 @@ create table tf_area_fx (user_id uuid not null, day date not null, parent_tag te
                          kind text not null, app_key text, minutes int not null);
 create table tf_off_fx (user_id uuid not null, day date not null, kind text not null default 'rest', label text);
 create table tf_daily_fx (user_id uuid not null, day date not null, active_minutes int not null default 0, items_done int not null default 0,
-                          work_minutes int, sleep_minutes int, mood numeric, cigarettes int);
+                          work_minutes int, sleep_minutes int, mood numeric, cigarettes int, commute_minutes int);
 create view taskflow_dashboard_area_daily with (security_invoker = true) as
   select user_id, day, parent_tag, tag, tag_path, kind, app_key, minutes from tf_area_fx;
 create view taskflow_dashboard_days_off with (security_invoker = true) as select user_id, day, kind, label from tf_off_fx;
 create view taskflow_dashboard_daily with (security_invoker = true) as
   select user_id, day, 'taskflow'::text as app, active_minutes, items_done, null::int as items_planned, null::int as streak_current,
-         'tf'::text as headline, now() as updated_at, work_minutes, sleep_minutes, mood, cigarettes from tf_daily_fx;
+         'tf'::text as headline, now() as updated_at, work_minutes, sleep_minutes, mood, cigarettes, commute_minutes from tf_daily_fx;
 create view taskflow_dashboard_now with (security_invoker = true) as
   select user_id, 'taskflow'::text as app, 1 as contract_version, 'tf'::text as status_line, 0 as needs_attention, null::text as attention_label,
          null::timestamptz as last_activity_at, now() as updated_at from tf_daily_fx group by user_id;
@@ -147,8 +147,8 @@ select ostest.ok('P3 os_streak columns', (select string_agg(attname, ',' order b
 -- ── P4. week across the November DST change, week start, TaskFlow and Money extras ───────────────────────────────────
 -- Trading minutes for U9: Fri 10-30 30, Sat 10-31 30, Sun 11-01 (clocks go back) 30, Mon 11-02 60
 select ostest.app_min('trading', :'U9', d::date, m) as _ from (values ('2026-10-30', 30), ('2026-10-31', 30), ('2026-11-01', 30), ('2026-11-02', 60)) v(d, m);
-insert into tf_daily_fx (user_id, day, active_minutes, work_minutes, sleep_minutes, mood, cigarettes) values
-  (:'U9', '2026-10-30', 0, 480, 420, 3, 4), (:'U9', '2026-10-31', 0, 0, 0, null, 2), (:'U9', '2026-11-01', 0, 0, 500, 5, 1), (:'U9', '2026-11-02', 0, 450, 460, 4, 3);
+insert into tf_daily_fx (user_id, day, active_minutes, work_minutes, sleep_minutes, mood, cigarettes, commute_minutes) values
+  (:'U9', '2026-10-30', 0, 480, 420, 3, 4, 60), (:'U9', '2026-10-31', 0, 0, 0, null, 2, 0), (:'U9', '2026-11-01', 0, 0, 500, 5, 1, null), (:'U9', '2026-11-02', 0, 450, 460, 4, 3, 50);
 create table money_fx (user_id uuid not null, day date not null, in_cents int, out_cents int, essential_out_cents int, discretionary_out_cents int, smoking_out_cents int);
 alter table money_fx enable row level security; create policy "own rows" on money_fx for all to authenticated using (user_id = auth.uid());
 create view money_dashboard_daily with (security_invoker = true) as
@@ -175,7 +175,9 @@ select ostest.ok('P4 TaskFlow extras: sums for work/cigarettes, averages for sle
   and (select value = 7 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'cigarettes' and week_start = '2026-10-26')   -- 4 + 2 + 1
   and (select value = (420 + 500) / 2.0 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'sleep_minutes' and week_start = '2026-10-26')
   and (select value = 4 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'mood' and week_start = '2026-10-26')   -- (3 + 5) / 2
-  and (select value = 450 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'work_minutes' and week_start = '2026-11-02'));
+  and (select value = 450 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'work_minutes' and week_start = '2026-11-02')
+  and (select value = 60 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'commute_minutes' and week_start = '2026-10-26')   -- 60 + 0 (a null day adds nothing)
+  and (select value = 50 from os_week where user_id = :'U9' and app = 'taskflow' and metric = 'commute_minutes' and week_start = '2026-11-02'));
 select ostest.ok('P4 a TaskFlow column the view does not have (weed, energy) is not invented',
   (select count(*) from os_week where app = 'taskflow' and metric in ('weed', 'energy', 'tasks_missed')) = 0);
 select ostest.ok('P4 Money: weekly sums and net = in - out',

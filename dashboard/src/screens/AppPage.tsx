@@ -21,7 +21,7 @@ export function AppPage() {
   const health = useMemo(() => (healthRows.data ? allAppHealth(healthRows.data, nowRows.data ?? [], now).find((h) => h.dataKey === key) : undefined), [healthRows.data, nowRows.data, now, key])
   const readable = health?.state === 'ok' || health?.state === 'needs-rerun'
   const nowView = useDashboardView(`${key}_dashboard_now`, !!app && readable)
-  const dailyView = useDashboardView(`${key}_dashboard_daily`, !!app && readable, DAYS)
+  const dailyView = useDashboardView(`${key}_dashboard_daily`, !!app && readable, { days: DAYS })
   if (!app) return <Navigate to="/" replace />
 
   const row = nowView.data?.[0]

@@ -118,6 +118,15 @@ describe('TaskFlow columns that may not exist yet', () => {
     expect(buildHome(full({ goals: goals(4, true, 'cigarettes') })).header.counters[0]).toMatchObject({ tone: 'amber' })
     expect(buildHome(full({ goals: goals(6, false, null) })).header.counters[0]).toMatchObject({ tone: 'none', limit: null })
   })
+  it('the counter average only covers days since TaskFlow\'s first row (days before it are not zeros)', () => {
+    // sample cigarettes: yesterday 2, two days ago 4, three days ago 3, then 5, 2, 4, 3
+    const avg = (tfFirstDay: string | null) => buildHome(full({ tfFirstDay })).header.counters[0]!.avg7
+    expect(avg(null)).toBe(3.3) // first row 13 days ago: all 7 days count -> 23 / 7
+    expect(avg('2026-10-18')).toBe(3.3) // exactly 7 days back is the first counted day
+    expect(avg('2026-10-23')).toBe(3) // started 2 days ago: (2 + 4) / 2
+    expect(avg('2026-10-24')).toBe(2) // started yesterday: 2 / 1
+    expect(avg('2026-10-25')).toBeNull() // started today: nothing earlier to average
+  })
   it('a counter the view has no column for is not shown', () => {
     const noWeed = v.taskflow_dashboard_daily.map(({ weed: _w, ...r }) => r as Row)
     expect(buildHome(full({ tfDaily: noWeed })).header.counters.map((c) => c.key)).toEqual(['cigarettes'])

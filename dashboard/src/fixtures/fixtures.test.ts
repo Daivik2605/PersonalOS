@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { APPS } from '../lib/apps'
 import { addDays } from '../lib/time'
-import { buildSampleOsViews, buildSampleViews, SAMPLE_DAYS } from './index'
+import { buildSampleOsViews, buildSampleViews, SAMPLE_DAYS, SAMPLE_HISTORY_DAYS } from './index'
 
 const TODAY = '2026-10-25'
 const v = buildSampleViews(TODAY, new Date('2026-10-25T15:00:00Z'))
@@ -47,13 +47,16 @@ describe('sample fixtures match the contract', () => {
 
   it('covers the whole window up to today and the TaskFlow extra views', () => {
     const days = v.taskflow_dashboard_daily.map((r) => r.day)
-    expect(days).toHaveLength(SAMPLE_DAYS)
+    expect(days).toHaveLength(SAMPLE_HISTORY_DAYS)
     expect(days.at(-1)).toBe(TODAY)
-    expect(days[0]).toBe(addDays(TODAY, -(SAMPLE_DAYS - 1)))
-    expect(v.taskflow_dashboard_days_off.map((d) => d.day)).toEqual([days[5]])
+    expect(days[0]).toBe(addDays(TODAY, -(SAMPLE_HISTORY_DAYS - 1)))
+    const window = days.slice(-SAMPLE_DAYS) // the hand-checked 14 days
+    expect(window[0]).toBe(addDays(TODAY, -(SAMPLE_DAYS - 1)))
+    expect(v.taskflow_dashboard_days_off.map((d) => d.day).filter((d) => d >= window[0]!)).toEqual([window[5]])
+    expect(v.taskflow_dashboard_days_off.length).toBeGreaterThan(10) // older history has days off too
     expect(v.taskflow_dashboard_deadlines.every((d) => d.hard_deadline && d.days_left >= 0)).toBe(true)
     expect(v.taskflow_dashboard_goals.some((g) => g.hit) && v.taskflow_dashboard_goals.some((g) => !g.hit)).toBe(true)
-    expect(v.money_dashboard_monthly).toHaveLength(3)
+    expect(v.money_dashboard_monthly).toHaveLength(12)
   })
 })
 

@@ -22,6 +22,8 @@ export interface HomeInput {
   daysOff: { day: Day }[] | null
   /** taskflow_dashboard_daily rows, at least the last 8 days. */
   tfDaily: Row[] | null
+  /** The first day TaskFlow has a row for (its whole history, not only the loaded window). Falls back to the earliest loaded row. */
+  tfFirstDay?: Day | null
   tfNow: Row | null
   goals: TaskflowGoalRow[] | null
   deadlines: TaskflowDeadlineRow[] | null
@@ -33,8 +35,9 @@ export interface CounterPill {
   key: string
   label: string
   today: number
-  /** Average per day over the 7 days before today (days with no row count as 0). */
-  avg7: number
+  /** Average per day over the up-to-7 days before today that are on or after TaskFlow's first row (a day with no row after that counts 0).
+   *  Null when TaskFlow started today: there are no earlier days to average. */
+  avg7: number | null
   /** The day limit from TaskFlow's at-most goal with this counter_key; null when none or the column isn't published yet. */
   limit: number | null
   tone: 'none' | 'ok' | 'amber' | 'red'
@@ -104,17 +107,22 @@ export function formatCents(cents: number, signed = false): string {
   return cents < 0 ? `-${body}` : signed && cents > 0 ? `+${body}` : body
 }
 
-function counters(tfDaily: Row[], goals: TaskflowGoalRow[], today: Day): CounterPill[] {
+function counters(tfDaily: Row[], goals: TaskflowGoalRow[], today: Day, firstDay: Day | null): CounterPill[] {
   const day = (r: Row) => r.day as Day
   const out: CounterPill[] = []
   for (const c of COUNTERS) {
     if (!tfDaily.some((r) => c.key in r)) continue // the view doesn't have this counter
     const at = (d: Day) => num(tfDaily.find((r) => day(r) === d)?.[c.key]) ?? 0
-    let sum = 0
-    for (let n = 1; n <= 7; n++) sum += at(addDays(today, -n))
+    const first = firstDay ?? tfDaily.map(day).sort()[0] ?? today
+    let sum = 0, counted = 0
+    for (let n = 1; n <= 7; n++) {
+      const d = addDays(today, -n)
+      if (d < first) break // before I started using TaskFlow: not zero, just not there
+      sum += at(d); counted++
+    }
     const goal = currentGoals(goals, today).find((g) => g.counterKey === c.key && g.direction === 'at_most' && g.period === 'day' && !g.paused)
     out.push({
-      key: c.key, label: c.label, today: at(today), avg7: Math.round((sum / 7) * 10) / 10,
+      key: c.key, label: c.label, today: at(today), avg7: counted > 0 ? Math.round((sum / counted) * 10) / 10 : null,
       limit: goal ? goal.amount : null,
       tone: !goal ? 'none' : goal.state === 'over' ? 'red' : goal.state === 'warning' ? 'amber' : 'ok',
     })
@@ -188,7 +196,7 @@ export function buildHome(i: HomeInput): HomeModel {
       streak: st ? { current: st.current, longest: st.longest } : null,
       workMinutes: work,
       sleepMinutes: sleep !== null && sleep > 0 ? sleep : null,
-      counters: i.tfDaily ? counters(i.tfDaily, i.goals ?? [], today) : [],
+      counters: i.tfDaily ? counters(i.tfDaily, i.goals ?? [], today, i.tfFirstDay ?? null) : [],
     },
     goals: { daily: goalViews.filter((g) => g.period === 'day'), longer: goalViews.filter((g) => g.period !== 'day') },
     attention: attention(i),

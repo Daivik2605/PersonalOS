@@ -32,10 +32,10 @@ export function HeaderCard({ model }: { model: HomeModel }) {
           <dd className="mt-1 flex flex-wrap gap-2">
             {h.counters.length === 0 && <span className="text-base text-slate-500">{NO_DATA}</span>}
             {h.counters.map((c) => (
-              <span key={c.key} data-tone={c.tone} title={`7-day average ${c.avg7} per day${c.limit !== null ? `, limit ${c.limit}` : ''}`}
+              <span key={c.key} data-tone={c.tone} title={`${c.avg7 === null ? 'No earlier days to average' : `Average ${c.avg7} per day over the days since TaskFlow started, up to 7`}${c.limit !== null ? `, limit ${c.limit}` : ''}`}
                 className={`rounded-full border px-3 py-1 text-sm ${TONE[c.tone]}`}>
                 <strong>{c.label} {c.today}</strong>
-                <span className="text-slate-600 dark:text-slate-400"> avg {c.avg7}{c.limit !== null ? ` / limit ${c.limit}` : ''}</span>
+                <span className="text-slate-600 dark:text-slate-400">{c.avg7 !== null ? ` avg ${c.avg7}` : ''}{c.limit !== null ? ` / limit ${c.limit}` : ''}</span>
                 {TONE_TEXT[c.tone] && <span className="sr-only"> {TONE_TEXT[c.tone]}</span>}
               </span>
             ))}

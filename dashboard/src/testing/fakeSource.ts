@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { OsViewName, OsViewRows, Settings } from '../lib/contract'
-import type { DashRow, DataSource } from '../data/source'
+import { applySince, dashSinceColumn, osSinceColumn, type DashRow, type DataSource } from '../data/source'
 
 export function emptyViews(): OsViewRows {
   return { os_daily_activity: [], os_apps_now: [], os_contract_health: [], os_tag_daily: [], os_productive_daily: [], os_streak: [], os_week: [], os_optional_health: [] }
@@ -13,8 +13,8 @@ export function fakeSource(views: Partial<OsViewRows> = {}, settings: Partial<Se
     kind: 'supabase',
     state,
     saved: [],
-    view: vi.fn(async (name: OsViewName) => { if (state.fail) throw new Error('network down'); return state.views[name] as never }) as DataSource['view'],
-    dashboardView: vi.fn(async (name: string) => { if (state.fail) throw new Error('network down'); return state.dash[name] ?? [] }) as DataSource['dashboardView'],
+    view: vi.fn(async (name: OsViewName, opts?: { since?: string; earliest?: boolean }) => { if (state.fail) throw new Error('network down'); return applySince(state.views[name] as object[], osSinceColumn(name), opts) as never }) as DataSource['view'],
+    dashboardView: vi.fn(async (name: string, opts?: { since?: string; days?: number; earliest?: boolean }) => { if (state.fail) throw new Error('network down'); return applySince(state.dash[name] ?? [], dashSinceColumn(name), opts) }) as DataSource['dashboardView'],
     settings: vi.fn(async () => { if (state.fail) throw new Error('network down'); return state.settings }),
     saveSettings: vi.fn(async (patch) => { if (state.saveError) return state.saveError; src.saved.push(patch); state.settings = { ...state.settings, ...patch }; return null }),
   }

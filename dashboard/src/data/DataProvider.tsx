@@ -88,39 +88,48 @@ export interface ViewState<T> {
   loadedAt: Date | null
 }
 
-/** Fetches an os_ view; refetches on every tick; on failure keeps the last loaded data and flags the provider. */
-export function useView<N extends OsViewName>(name: N): ViewState<OsViewRows[N]> {
+/** Fetches an os_ view (limited to `since` when given); refetches on every tick; on failure keeps the last loaded data and flags the provider.
+ *  Changing `since` (a new range) drops the old rows at once so a range never shows another range's data. `enabled: false` waits (e.g. for settings). */
+export function useView<N extends OsViewName>(name: N, opts: { since?: string; earliest?: boolean; enabled?: boolean } = {}): ViewState<OsViewRows[N]> {
+  const { since, earliest = false, enabled = true } = opts
   const { source, tick, report } = useData()
   const [state, setState] = useState<ViewState<OsViewRows[N]>>({ data: null, loading: true, error: null, loadedAt: null })
+  const keyRef = useRef(`${name}|${since}|${earliest}`)
   const sourceRef = useRef(source)
 
   useEffect(() => {
-    if (sourceRef.current !== source) { sourceRef.current = source; setState({ data: null, loading: true, error: null, loadedAt: null }) }
-    if (!source) return
+    const key = `${name}|${since}|${earliest}`
+    if (sourceRef.current !== source || keyRef.current !== key) { sourceRef.current = source; keyRef.current = key; setState({ data: null, loading: true, error: null, loadedAt: null }) }
+    if (!source || !enabled) return
     let live = true
-    source.view(name).then(
+    source.view(name, since || earliest ? { ...(since ? { since } : {}), ...(earliest ? { earliest } : {}) } : undefined).then(
       (data) => { if (live) { setState({ data, loading: false, error: null, loadedAt: new Date() }); report(true) } },
       (e: unknown) => { if (live) { setState((s) => ({ ...s, loading: false, error: e instanceof Error ? e.message : String(e) })); report(false) } },
     )
     return () => { live = false }
-  }, [source, name, tick, report])
+  }, [source, name, since, earliest, enabled, tick, report])
 
   return state
 }
 
 /**
- * Fetches a published app view (`taskflow_dashboard_goals`, ...). `enabled` is false until Data health says the app is
- * published, so an unpublished app is never queried (no error, no fake zero). Rows are null until loaded or while disabled.
+ * Fetches a published app view (`taskflow_dashboard_goals`, ...), limited to `opts` (`since` / `days` / `earliest`). `enabled` is false
+ * until Data health says the app is published, so an unpublished app is never queried (no error, no fake zero). Rows are null until
+ * loaded or while disabled; changing the range drops the old rows at once.
  */
-export function useDashboardView(name: string, enabled: boolean, days?: number): ViewState<DashRow[]> {
+export function useDashboardView(name: string, enabled: boolean, opts: { days?: number; since?: string; earliest?: boolean } = {}): ViewState<DashRow[]> {
+  const { days, since, earliest = false } = opts
   const { source, tick, report } = useData()
   const [state, setState] = useState<ViewState<DashRow[]>>({ data: null, loading: enabled, error: null, loadedAt: null })
+  const keyRef = useRef(`${name}|${days}|${since}|${earliest}`)
 
   useEffect(() => {
-    if (!enabled) { setState({ data: null, loading: false, error: null, loadedAt: null }); return }
+    const key = `${name}|${days}|${since}|${earliest}`
+    if (keyRef.current !== key) { keyRef.current = key; setState({ data: null, loading: enabled, error: null, loadedAt: null }) }
+    if (!enabled) { setState((s) => (s.data === null && !s.loading && !s.error ? s : { data: null, loading: false, error: null, loadedAt: null })); return }
     if (!source) return
     let live = true
-    source.dashboardView(name, days ? { days } : undefined).then(
+    source.dashboardView(name, days || since || earliest ? { ...(days ? { days } : {}), ...(since ? { since } : {}), ...(earliest ? { earliest } : {}) } : undefined).then(
       (data) => { if (live) { setState({ data, loading: false, error: null, loadedAt: new Date() }); report(true) } },
       (e: unknown) => {
         if (!live) return
@@ -129,7 +138,7 @@ export function useDashboardView(name: string, enabled: boolean, days?: number):
       },
     )
     return () => { live = false }
-  }, [source, name, enabled, days, tick, report])
+  }, [source, name, enabled, days, since, earliest, tick, report])
 
   return state
 }

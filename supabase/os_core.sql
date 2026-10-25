@@ -283,7 +283,7 @@ begin
     'select user_id, day, ''os''::text, ''days_off''::text, 1::numeric, ''sum''::text from os_productive_daily where is_day_off'];
 
   if os_columns_ok('taskflow_dashboard_daily', 'daily') and os_view_access_ok('taskflow_dashboard_daily') then
-    foreach c in array array['work_minutes:sum', 'cigarettes:sum', 'weed:sum', 'tasks_missed:sum', 'deadlines_missed:sum',
+    foreach c in array array['work_minutes:sum', 'commute_minutes:sum', 'cigarettes:sum', 'weed:sum', 'tasks_missed:sum', 'deadlines_missed:sum',
                              'sleep_minutes:avg', 'mood:avg', 'energy:avg'] loop
       col := split_part(c, ':', 1); agg := split_part(c, ':', 2);
       if os_has_col('taskflow_dashboard_daily', col) then

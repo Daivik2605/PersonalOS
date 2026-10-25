@@ -3,7 +3,7 @@
 import { buildSampleOsViews, buildSampleViews } from '../fixtures'
 import { addDays, todayToronto } from '../lib/time'
 import type { Settings } from '../lib/contract'
-import { isDashboardView, type DashRow, type DataSource } from './source'
+import { applySince, dashSinceColumn, isDashboardView, osSinceColumn, type DashRow, type DataSource } from './source'
 
 export function makeSampleSource(now: Date = new Date()): DataSource {
   const today = todayToronto(now)
@@ -12,12 +12,12 @@ export function makeSampleSource(now: Date = new Date()): DataSource {
   let saved: Partial<Settings> | null = null // in memory only: sample mode never writes to the database
   return {
     kind: 'sample',
-    view: async (name) => os[name] as never,
+    view: async (name, opts) => applySince(os[name] as object[], osSinceColumn(name), opts) as never,
     dashboardView: async (name, opts) => {
       if (!isDashboardView(name)) throw new Error(`Not a dashboard view: ${name}`)
       const rows = ((views as unknown as Record<string, DashRow[]>)[name] ?? []).slice()
-      const since = opts?.days ? addDays(today, -(opts.days - 1)) : null
-      return since ? rows.filter((r) => typeof r.day !== 'string' || r.day >= since) : rows
+      const since = opts?.since ?? (opts?.days ? addDays(today, -(opts.days - 1)) : undefined)
+      return applySince(rows, dashSinceColumn(name), { since, earliest: opts?.earliest })
     },
     settings: async () => saved,
     saveSettings: async (patch) => { saved = { ...saved, ...patch }; return null },
