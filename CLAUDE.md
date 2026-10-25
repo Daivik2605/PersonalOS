@@ -23,7 +23,7 @@ Read `docs/ARCHITECTURE.md` (design), `docs/CONTRACT.md` (what each app must pub
 4. Every view is created `with (security_invoker = true)` so RLS still applies, plus `grant select ... to authenticated`.
 5. Each app keeps its SQL in **its own repo** at `<app>/supabase/<prefix>schema.sql`. It must be idempotent and safe to re-run, and never drop user data. The only shared SQL is `supabase/os_core.sql` at the root, owned by the dashboard.
 6. Days are local calendar dates (`YYYY-MM-DD`, America/Toronto) stored as `date`. Moments are `timestamptz`.
-7. Apps contain only the anon/publishable key, in `.env.local` (or a gitignored `config.js` for static apps). Never the service_role key, never the DB password.
+7. Apps contain only the anon/publishable key, in `.env.local` (or a gitignored `config.js` for static apps). Never the service_role key, never the DB password. Exception: a Supabase **Edge Function** may use the service-role key Supabase injects server-side, only when it must act without a user session (e.g. TaskFlow's token-authenticated `taskflow-api` and scheduled `taskflow-notify`), and must scope every query to one verified user.
 
 ## Every app must
 - Run on its fixed port from the registry (Vite: `server: { port, strictPort: true }`).
