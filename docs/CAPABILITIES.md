@@ -11,7 +11,7 @@ What PersonalOS does, stated as the questions it answers. Every feature in every
 | 3 | **Learn** | Where am I in each track? What's weak? What's behind schedule? Am I getting better? | InteractiveDSA, chart-journal; later the SQL and cert apps (Tableau + Databricks) | building |
 | 4 | **Work & pay** | Hours at each job (Tim Hortons, Oland Stations)? Am I paid correctly? Does my record match the store's? | TaskFlow: shifts, pay rules, paystubs, photo reading | planned (phases 6, 7, 12) |
 | 5 | **Body & balance** | How did I sleep? How much wellness, break and nap/reset time? How many cigarettes and joints, and is it going down? | TaskFlow: sleep check-in, presets, nap/reset, counters | building (counters in 2.5; the rest in 5 and 8) |
-| 6 | **Money** | Money in vs out, net per month, spend by category, subscriptions, rent and insurance, what to cancel | `money/` (statements → rules → categories) | idea |
+| 6 | **Money** | Money in vs out, net per month, spend by category, subscriptions, rent and insurance, what to cancel | Money app (`money/`, Mac only): CSV/PDF statements → rules + review queue → reports, subscriptions, paycheques matched to TaskFlow paystubs | **next major app** (spec + 10-phase plan) |
 | 7 | **Career** | Where did I apply, with which resume, what's the status, which follow-ups are due? | TaskFlow "Job search" project (own app only if needed) | after TaskFlow is ready |
 | 8 | **See everything** | How is today going against my goal? What's my streak (days off skipped)? What needs attention across all apps? What do the last weeks look like? | Dashboard | planned (after TaskFlow phase 4.5) |
 

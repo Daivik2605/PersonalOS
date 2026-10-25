@@ -59,12 +59,11 @@ These go under the Wellness, Break or Personal tags, so they show on the dashboa
 - Stats in TaskFlow → Insights: today, week, month, all time, per-day/week/month charts, daily averages, days since last, zero days.
 - Money spent on them comes from Finance (bank statements), not from here.
 
-### 9. Finance — future app `money/`
-- Inputs: fixed costs typed once (rent, phone, insurance…), plus monthly **bank and credit-card statements** (CSV export first; PDF parsing later).
-- First import: it asks "what was this?" for each unknown merchant and saves a **rule** (merchant → category); recurring merchants are categorised automatically after that. Categories to set when building: groceries, weed, cigarettes, subscriptions, rent, bills, cab, car, eating out, transfers (excluded), unknown, …
-- Output per month: money in, money out, **net (making or losing)**, spend by category, subscriptions list, and the "unknown" pile shrinking over time.
-- Privacy: statements contain account numbers. Strip them on import, store only date/merchant/amount/category, keep RLS on. Card-to-card transfers and credit-card payments must be detected so they aren't counted twice.
-- Could use Claude via my API key to suggest categories for unknown merchants (cheap; optional).
+### 9. Finance — `money/` (next major app)
+- **Full spec and 10-phase build plan:** `money/docs/SPEC.md`, `money/docs/BUILD_PLAN.md`. Local on the Mac only (most sensitive data); the phone sees a summary through PersonalOS Home.
+- Answers: in vs out and net per day/week/month/year; spend by category and merchant; essential vs discretionary; every subscription with a keep/cancel decision; paycheques per employer matched to TaskFlow's paystubs; smoking spend (Home can later show cost per cigarette with TaskFlow's counters).
+- How: CSV exports (PDF later) parsed in the browser and never stored, account numbers stripped, exact integer cents, duplicate-proof re-imports, rules + a "what was this?" review queue, transfers and card payments excluded, optional Claude suggestions via an Edge Function.
+- Split with TaskFlow: TaskFlow owns jobs, shifts, hours and paystubs; Money owns bank deposits and matches them through `taskflow_dashboard_paystubs`.
 
 ### 10. AEO Studio — in TaskFlow (a project with extras)
 - One TaskFlow **project** with its own area.
@@ -99,14 +98,15 @@ Every project gets a **brief** so future-me can pick it up after 2 months: what 
 - **Holidays / days off for all of PersonalOS** — set in TaskFlow's calendar; the dashboard reads them so streaks and daily goals skip those days.
 
 ## Build order (after this file)
-Three apps are being built in parallel; use them only once they're finished.
+Three apps are being built in parallel (keep it to three sessions at once — they share one subscription limit); use them only once they're finished. **Money is the next major app** and takes the first free slot.
 1. **TaskFlow** — `taskflow/docs/BUILD_PLAN.md` (spec in `taskflow/docs/SPEC.md`). Phases 1–4, then **4.5 (dashboard views, moved up)**, then 5–13.
    - after phase 5: the reset hook in each existing app — `docs/prompts/07-reset-hook.md`
 2. **chart-journal** round 2 — `docs/prompts/05-chart-journal-round2.md`
 3. **InteractiveDSA** — v2 curriculum migration (B–D), then Supabase sync (3.5.2–3.5.6)
-4. **Dashboard + launcher, local on the Mac** — `docs/prompts/04-dashboard.md`, as soon as TaskFlow phase 4.5 is done (it works with whichever apps have published views; DSA joins when its sync is done)
+4. **PersonalOS Home (dashboard + launcher), local on the Mac** — `dashboard/docs/BUILD_PLAN.md` (spec: `dashboard/docs/SPEC.md`). Phase 1 (shell + launcher) any time; phases 2–3 after TaskFlow phase 4.5; works with whichever apps have published views (DSA joins when its sync is done)
 5. Hosting: TaskFlow at TaskFlow phase 3; the dashboard after it works locally (both on subdomains of my Vercel domain — `docs/ARCHITECTURE.md` §4)
-6. Finance → SQL app → cert-prep app; job tracker only if the TaskFlow project isn't enough
+6. **Money** — phase 0 (your CSV exports) now; phases 1–6 in the first free session slot (likely when chart-journal round 2 finishes); phase 7 after TaskFlow phase 7
+7. SQL app → cert-prep app; job tracker only if the TaskFlow project isn't enough
 
 ## Later TaskFlow add-ons (not in v1)
 - iOS Shortcuts / share-sheet capture ("Add to TaskFlow" from any app) through a Supabase Edge Function with a personal capture token

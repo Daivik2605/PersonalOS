@@ -60,3 +60,10 @@ Rules for callers:
 - **Offline apps** (DSA) queue the call with the real start time in `p_at` and send it when back online; the popup then appears on sync.
 - If the result has `ended: true`, show the popup: *"Reset ended at {time} — nap {n}, reset {r}. Recorded."* with a link that opens TaskFlow (to undo or edit).
 - `p_app` = the app key from the registry; `p_detail` = a short human description of what was started.
+
+## Reading another app's views
+Any app may read another app's published `*_dashboard_*` views — never its tables — when it genuinely needs that data. Both sides record the dependency in their `docs/DATA_CONTRACT.md` (the publisher under "Read by", the reader under "Reads"), so a change to the view is checked against its readers. Current dependencies:
+| Reader | Reads | Why |
+|---|---|---|
+| PersonalOS Home | every app's `_daily` / `_now`, TaskFlow `_area_daily`, `_days_off`, `_deadlines`, Money `_monthly` | the dashboard |
+| Money | TaskFlow `taskflow_dashboard_paystubs` | match payroll deposits to paystubs |

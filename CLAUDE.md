@@ -7,18 +7,18 @@ Read `docs/ARCHITECTURE.md` (design), `docs/CONTRACT.md` (what each app must pub
 ## App registry (single source of truth — other docs point here; update it when an app, port or status changes)
 | App | Folder | Port | Table prefix | Storage bucket prefix | Status |
 |---|---|---|---|---|---|
-| Dashboard + launcher | `dashboard/` | 5170 (UI), 5171 (launcher API) | `os_` | `os-` | planned — starts after TaskFlow phase 4.5; local on the Mac first, hosted on a subdomain later (`docs/prompts/04-dashboard.md`) |
+| PersonalOS Home (dashboard + launcher) | `dashboard/` (in the root repo) | 5170 (UI), 5171 (launcher API) | `os_` | `os-` | spec + build plan written (`dashboard/docs/`); phase 1 can start any time, phases 2–3 after TaskFlow phase 4.5; local first, then `os.<domain>` |
 | Chart Journal | `chart-journal/` | 5173 | `trading_` | `trading-` | built, on shared DB |
 | InteractiveDSA | `InteractiveDSA/` | 5174 | `dsa_` | `dsa-` | built; v2 curriculum migration in progress (Phase A done); Supabase sync paused until it finishes (3.5.1 done) |
-| TaskFlow (tasks, timer, calendar + days off, inbox, projects) | `taskflow/` | 5175 (dev; also deployed online for iPhone) | `taskflow_` | `taskflow-` | phases 1–2 built (scaffold, schema, sign-in, seed, tasks + Today, areas); next: phase 3 (`taskflow/docs/BUILD_PLAN.md`) |
+| TaskFlow (tasks, timer, calendar + days off, inbox, projects) | `taskflow/` | 5175 (dev; also deployed online for iPhone) | `taskflow_` | `taskflow-` | phases 1–2.5 built (scaffold, schema, sign-in, seed, tasks + Today, tag tree, task dates, counters, Insights); run the phase 2.5 SQL; next: phase 3 (`taskflow/docs/BUILD_PLAN.md`) |
 | Job tracker | `jobs/` | 5176 | `jobs_` | `jobs-` | in TaskFlow for now (a "Job search" project); own app only if TaskFlow can't do it |
-| Money (statements → in/out, categories) | `money/` | 5177 | `money_` | `money-` | idea |
+| Money (statements → in/out, categories, subscriptions, paycheques) | `money/` | 5177 (local only, never hosted) | `money_` | `money-` | **next major app** — spec + build plan written (`money/docs/`); phase 0 (your exports) now, phases 1–6 as soon as a session slot frees up |
 | SQL practice | `sql/` | 5178 | `sql_` | `sql-` | idea |
 | Cert prep (Tableau + Databricks tracks) | `cert/` | 5179 | `cert_` | `cert-` | idea |
 
 ## Database rules
 1. One Supabase project for everything. Never create a second project.
-2. An app only creates, alters, writes or deletes tables, views, functions and buckets with **its own prefix**. It never writes to another app's objects. Only the dashboard may *read* other apps, and only their `*_dashboard_*` views. The one exception for writes is calling a function listed under **Shared calls** in `docs/CONTRACT.md` (e.g. `taskflow_end_reset`).
+2. An app only creates, alters, writes or deletes tables, views, functions and buckets with **its own prefix**. It never writes to another app's objects. Any app may *read* another app's published `*_dashboard_*` views (never its tables), listed as a dependency in both apps' `docs/DATA_CONTRACT.md` — e.g. PersonalOS Home reads every app; Money reads TaskFlow's paystubs view. The one exception for writes is calling a function listed under **Shared calls** in `docs/CONTRACT.md` (e.g. `taskflow_end_reset`).
 3. Every table has `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`, Row Level Security on, and the `"own rows"` policy (`user_id = auth.uid()`) for `authenticated`.
 4. Every view is created `with (security_invoker = true)` so RLS still applies, plus `grant select ... to authenticated`.
 5. Each app keeps its SQL in **its own repo** at `<app>/supabase/<prefix>schema.sql`. It must be idempotent and safe to re-run, and never drop user data. The only shared SQL is `supabase/os_core.sql` at the root, owned by the dashboard.
