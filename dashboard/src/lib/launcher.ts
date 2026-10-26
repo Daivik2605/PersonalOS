@@ -1,6 +1,8 @@
 // Talks to the local launcher (SPEC §4). The launcher only answers http://localhost:5170 and requires the
 // X-PersonalOS header on every POST, so this client always sends it.
 
+import type { BackupInfo } from './health'
+
 export const DASHBOARD_ORIGIN = 'http://localhost:5170'
 
 export type LauncherMode =
@@ -60,6 +62,7 @@ export function createLauncherClient(baseUrl: string, fetchFn: typeof fetch = fe
   const seg = encodeURIComponent
   return {
     status: () => call<{ apps: AppStatus[] }>('GET', '/status'),
+    backup: () => call<BackupInfo>('GET', '/backup'),
     logs: (key: string) => call<{ key: string; lines: string[] }>('GET', `/logs/${seg(key)}`),
     start: (key: string) => call<{ key: string }>('POST', `/start/${seg(key)}`),
     stop: (key: string) => call<{ key: string }>('POST', `/stop/${seg(key)}`),

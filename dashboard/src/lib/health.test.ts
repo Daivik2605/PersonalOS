@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { APPS } from './apps'
-import type { HealthRow, NowRow } from './contract'
-import { STALE_DAYS, ago, allAppHealth, appHealth, isStale } from './health'
+import type { HealthRow, NowRow, OptionalHealthRow } from './contract'
+import { BACKUP_DAYS, QUIET_DAYS, STALE_DAYS, ago, allAppHealth, appHealth, backupStatus, databaseActivity, formatBytes, isStale, optionalHealth } from './health'
 
 const NOW = new Date('2026-10-25T15:00:00Z')
 const hours = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString()
@@ -96,5 +96,64 @@ describe('ago', () => {
   ])('%s -> %s', (from, out) => expect(ago(from, NOW)).toBe(out))
   it('treats a timestamp slightly in the future (clock skew) as just now', () => {
     expect(ago(new Date(NOW.getTime() + 5000), NOW)).toBe('just now')
+  })
+})
+
+describe('databaseActivity', () => {
+  const dayMs = 86_400_000
+  const at = (ms: number) => new Date(NOW.getTime() - ms).toISOString()
+  it('takes the newest last_activity_at across apps and names the app', () => {
+    const r = databaseActivity([nowRow('dsa', { last_activity_at: at(3 * dayMs) }), nowRow('trading', { last_activity_at: at(dayMs) }), nowRow('taskflow', { last_activity_at: null })], NOW)
+    expect(r).toEqual({ at: at(dayMs), app: 'trading', quiet: false })
+  })
+  it('is quiet only after more than 5 days', () => {
+    expect(databaseActivity([nowRow('dsa', { last_activity_at: at(QUIET_DAYS * dayMs) })], NOW).quiet).toBe(false)
+    expect(databaseActivity([nowRow('dsa', { last_activity_at: at(QUIET_DAYS * dayMs + 60_000) })], NOW).quiet).toBe(true)
+  })
+  it('nothing recorded yet is not a warning', () => {
+    expect(databaseActivity([], NOW)).toEqual({ at: null, app: null, quiet: false })
+    expect(databaseActivity([nowRow('dsa', { last_activity_at: null })], NOW).quiet).toBe(false)
+  })
+})
+
+describe('backupStatus', () => {
+  // NOW is 2026-10-25 11:00 in Toronto.
+  const info = (date: string, count = 3) => ({ latest: { name: `${date}.sql.gz`, date, bytes: 2048 }, count })
+  it('is unknown (no warning) when the launcher cannot be reached', () => {
+    expect(backupStatus(null, NOW)).toEqual({ kind: 'unknown' })
+  })
+  it('is none when the launcher is up and the folder is empty', () => {
+    expect(backupStatus({ latest: null, count: 0 }, NOW)).toEqual({ kind: 'none' })
+  })
+  it('is ok up to 8 days and old from 9', () => {
+    expect(backupStatus(info('2026-10-25'), NOW)).toMatchObject({ kind: 'ok', ageDays: 0, count: 3 })
+    expect(backupStatus(info('2026-10-17'), NOW)).toMatchObject({ kind: 'ok', ageDays: BACKUP_DAYS })
+    expect(backupStatus(info('2026-10-16'), NOW)).toMatchObject({ kind: 'old', ageDays: BACKUP_DAYS + 1 })
+  })
+  it('a date in the future counts as today', () => {
+    expect(backupStatus(info('2026-10-26'), NOW)).toMatchObject({ kind: 'ok', ageDays: 0 })
+  })
+})
+
+describe('optionalHealth', () => {
+  const r = (over: Partial<OptionalHealthRow>): OptionalHealthRow => ({ app: 'taskflow', view: 'taskflow_dashboard_days_off', exists: true, columns_ok: true, access_ok: true, in_use: true, ...over })
+  it('classifies each state; only broken carries a problem', () => {
+    const out = optionalHealth([
+      r({}),
+      r({ exists: false, columns_ok: false, access_ok: false, in_use: false }),
+      r({ columns_ok: false, in_use: false }),
+      r({ access_ok: false, in_use: false }),
+      r({ in_use: false }),
+    ])
+    expect(out.map((o) => o.state)).toEqual(['in-use', 'not-published', 'broken', 'broken', 'needs-rerun'])
+    expect(out.map((o) => o.problem === null)).toEqual([true, true, false, false, true])
+    expect(out[2]!.problem).toMatch(/columns/)
+    expect(out[3]!.problem).toMatch(/security_invoker/)
+  })
+})
+
+describe('formatBytes', () => {
+  it('scales', () => {
+    expect([formatBytes(900), formatBytes(2048), formatBytes(5 * 1024 * 1024)]).toEqual(['900 B', '2 kB', '5.0 MB'])
   })
 })

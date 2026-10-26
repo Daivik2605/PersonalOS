@@ -117,7 +117,8 @@ One per app: all its `_now` extras, a 30-day table of its `_daily` view showing 
 ### 3.5 System
 - **Apps** (built in phase 1): status, port, started-by-launcher vs already running, Start / Stop / Open / Logs, Start all / Stop all.
 - **Data health:** per app — published or not, contract OK (from `os_contract_health`), and "re-run os_core.sql" when a new valid view isn't in the unions yet. **Stale** (a warning) applies only to apps with `syncs: true` (DSA), when the `_now` view's `updated_at` is more than 2 days old: only an app that syncs can have data that is out of date. Every published app also shows **last activity** (`last_activity_at`) as plain information, never a warning — a quiet week is not a fault.
-- **Database:** last activity anywhere (warning after 5 quiet days — free Supabase projects pause after about a week); last backup (warning after 8 days).
+- **Optional views:** `taskflow_dashboard_area_daily` and `taskflow_dashboard_days_off` from `os_optional_health`: in use, not published (information only), problem (names it: columns or access), or valid but not used yet (re-run `os_core.sql`).
+- **Database:** last activity anywhere (newest `last_activity_at` of any app; warning after more than 5 quiet days — free Supabase projects pause after about a week; "no activity yet" is not a warning); last backup from `GET /backup` (warning after more than 8 calendar days, or none while the launcher is up). When the launcher is offline or hosted, the backup row says backups are checked from the Mac and shows no warning.
 
 ### 3.6 Settings
 Daily productive goal · week start · hidden apps and card order · theme · sample-data toggle (dev only) · sign out. (Per-tag goals: link to TaskFlow `/goals`.)
@@ -141,7 +142,7 @@ Daily productive goal · week start · hidden apps and card order · theme · sa
 - `../start-os.sh` starts the launcher and Home (plus every app with `--all`, skipping and naming any whose port is already up) and opens the browser. `launcher/com.personalos.start.plist` runs it at login.
 
 ## 5. Backups
-- `launcher/backup.sh` runs `pg_dump` with `SUPABASE_DB_URL` from the **root** `.env.local`, writes `../backups/YYYY-MM-DD.sql.gz` (gitignored), keeps the newest 8, runs weekly through launchd; System shows the date.
+- `launcher/backup.sh` runs `pg_dump` with `SUPABASE_DB_URL` from the **root** `.env.local`, writes `../backups/YYYY-MM-DD.sql.gz` (gitignored), keeps the newest 8, runs weekly (Sunday 03:00) through launchd; System shows the date. `backups/` is mode 700 and each file 600 (the dump holds the `auth` schema), checked and fixed on every run. It uses the newest installed `pg_dump` (a dump needs one at least as new as the server) and, if the version is too old, says `brew install postgresql@N`. On permission errors in Supabase's internal schemas it retries with `--schema=public --schema=auth --schema=storage` and logs `FALLBACK`. It writes a temp file, verifies it with `gzip -t`, then renames it, so a failed run never leaves a partial backup or deletes an old one.
 - `docs/RESTORE.md`: exact restore steps, tested once on local Postgres.
 
 ## 6. Hosting (after it works locally)

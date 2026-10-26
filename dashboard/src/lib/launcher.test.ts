@@ -23,11 +23,11 @@ describe('launcher client', () => {
     const fetchFn = vi.fn(async () => json(200, {}))
     const c = createLauncherClient('http://127.0.0.1:5171', fetchFn as unknown as typeof fetch)
     await c.start('taskflow'); await c.stop('taskflow'); await c.startAll(); await c.stopAll()
-    await c.status(); await c.logs('taskflow')
+    await c.status(); await c.logs('taskflow'); await c.backup()
     const calls = fetchFn.mock.calls as unknown as [string, RequestInit][]
     expect(calls.map(([url, init]) => [init.method, url.replace('http://127.0.0.1:5171', '')])).toEqual([
       ['POST', '/start/taskflow'], ['POST', '/stop/taskflow'], ['POST', '/start-all'], ['POST', '/stop-all'],
-      ['GET', '/status'], ['GET', '/logs/taskflow'],
+      ['GET', '/status'], ['GET', '/logs/taskflow'], ['GET', '/backup'],
     ])
     for (const [, init] of calls) {
       if (init.method === 'POST') expect(init.headers).toEqual({ 'X-PersonalOS': '1' })

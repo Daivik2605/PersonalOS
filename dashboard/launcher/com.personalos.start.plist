@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalos.start</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/daivik/Desktop/Daivik/PersonalOS/start-os.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/daivik/Desktop/Daivik/PersonalOS</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <!-- Once per login. No KeepAlive: if Home or the launcher stops, it stays stopped (nothing restarts in a loop). -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/daivik/Desktop/Daivik/PersonalOS/dashboard/launcher/logs/launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/daivik/Desktop/Daivik/PersonalOS/dashboard/launcher/logs/launchd.log</string>
+</dict>
+</plist>

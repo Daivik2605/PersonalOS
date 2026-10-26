@@ -19,7 +19,7 @@ if (await isPortUp(PORT)) {
   process.exit(1)
 }
 
-const server = createLauncherServer(manager)
+const server = createLauncherServer(manager, { backupsDir: resolve(here, '..', '..', 'backups') })
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`[launcher] listening on http://127.0.0.1:${PORT}`)
   if (process.argv.includes('--start-all')) {

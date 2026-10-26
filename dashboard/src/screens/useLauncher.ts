@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { BackupInfo } from '../lib/health'
 import { createLauncherClient, launcherMode, type AppStatus, type BatchResult, type CallResult, type LauncherClient, type LauncherMode } from '../lib/launcher'
 
 export type LauncherView =
@@ -7,6 +8,7 @@ export type LauncherView =
   | { phase: 'ok'; apps: AppStatus[] }
 
 const POLL_MS = 3000
+const BACKUP_POLL_MS = 60_000
 
 export function useLauncher(
   mode: LauncherMode = launcherMode(import.meta.env.VITE_LAUNCHER_URL as string | undefined, window.location.origin),
@@ -17,6 +19,8 @@ export function useLauncher(
   const [view, setView] = useState<LauncherView>({ phase: 'loading' })
   const [busy, setBusy] = useState<string | null>(null) // an app key, or 'all'
   const [message, setMessage] = useState<string | null>(null)
+  // null until the launcher has answered; stays null when it is offline (so System makes no claim about backups).
+  const [backup, setBackup] = useState<BackupInfo | null>(null)
   const alive = useRef(true)
 
   const refresh = useCallback(async () => {
@@ -31,7 +35,13 @@ export function useLauncher(
     if (!client) return
     void refresh()
     const id = setInterval(() => void refresh(), POLL_MS)
-    return () => { alive.current = false; clearInterval(id) }
+    const loadBackup = async () => {
+      const r = await client.backup()
+      if (alive.current) setBackup(r.ok ? r.data : null)
+    }
+    void loadBackup()
+    const bid = setInterval(() => void loadBackup(), BACKUP_POLL_MS)
+    return () => { alive.current = false; clearInterval(id); clearInterval(bid) }
   }, [client, refresh])
 
   const run = useCallback(async (who: string, fn: (c: LauncherClient) => Promise<CallResult<unknown>>, describe?: (d: unknown) => string | null) => {
@@ -54,7 +64,7 @@ export function useLauncher(
   }
 
   return {
-    mode, view, busy, message,
+    mode, view, busy, message, backup,
     start: (key: string) => run(key, (c) => c.start(key)),
     stop: (key: string) => run(key, (c) => c.stop(key)),
     startAll: () => run('all', (c) => c.startAll(), batchNote),

@@ -2,8 +2,9 @@
 import http from 'node:http'
 import { ALLOWED_ORIGIN, checkRequest, corsHeaders } from './guard.mjs'
 import { LauncherError } from './manager.mjs'
+import { backupInfo } from './backups.mjs'
 
-export function createLauncherServer(manager, { allowedOrigin = ALLOWED_ORIGIN } = {}) {
+export function createLauncherServer(manager, { allowedOrigin = ALLOWED_ORIGIN, backupsDir = null } = {}) {
   const server = http.createServer(async (req, res) => {
     const port = server.address()?.port
     const send = (status, body) => {
@@ -21,6 +22,7 @@ export function createLauncherServer(manager, { allowedOrigin = ALLOWED_ORIGIN }
       const get = req.method === 'GET'
 
       if (get && route === 'status' && parts.length === 1) return send(200, { apps: await manager.status() })
+      if (get && route === 'backup' && parts.length === 1) return send(200, backupInfo(backupsDir ?? ''))
       if (get && route === 'logs' && parts.length === 2) return send(200, manager.logs(key))
       if (!get && route === 'start' && parts.length === 2) return send(200, await manager.start(key))
       if (!get && route === 'stop' && parts.length === 2) return send(200, await manager.stop(key))
